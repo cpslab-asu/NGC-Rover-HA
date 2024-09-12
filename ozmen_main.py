@@ -52,7 +52,7 @@ class Movement:
 class ManualActions:
     signal_66: bool = False
     signal_55: bool = False
-
+    signal_turnRight = 0
 
 @dataclass
 class Flags:
@@ -243,7 +243,7 @@ class State3(State):
         new_motorThread = motorThread
         
         val_pre_movement = rover.getCompass()
-        rover(VELOCITY, TURN_RIGHT*OMEGA)
+        rover(VELOCITY, new_flags.manualActions.signal_turnRight*OMEGA)
         self.angle_moved += abs(val_pre_movement-rover.getCompass())
         if new_flags.manualActions.signal_66:
             new_flags.autoDrive = False
@@ -285,7 +285,7 @@ class State4(State):
         new_motorThread = motorThread
         
         
-        rover(VELOCITY, TURN_RIGHT*OMEGA)
+        rover(VELOCITY, new_flags.manualActions.signal_turnRight*OMEGA)
 
         new_flags.switch_updateGPS
         new_flags.continueMoving = True
@@ -495,14 +495,18 @@ class StateManager:
         return flags, motorThread, setServo, rover
 
 
-def generateManualActions(signal_55, signal_66):
+def generateManualActions(signal_55, signal_66, signal_turnRight):
     manualActionList = []
-    for s_55, s_66 in zip(signal_55, signal_66):
+    for s_55, s_66, s_tr in zip(signal_55, signal_66, signal_turnRight):
         ma = ManualActions()
         if s_55:
             ma.signal_55 = True
         if s_66:
             ma.signal_66 = True
+        if s_tr == 1:
+            ma.signal_turnRight = 1
+        elif s_tr == -1:
+            ma.signal_turnRight = -1
         manualActionList.append(ma)
     return manualActionList
     
@@ -529,15 +533,22 @@ class RoverHAModel(Model[RoverHAResultT, None]):
                 signal_55[signal_times >= t] = 0  # Set signal to 0 at odd indices (fall)
 
         signal_66 = np.zeros_like(signal_times)
-        for i, t in enumerate(np.sort(inputs_bounds[4:])):
+        for i, t in enumerate(np.sort(inputs_bounds[4:8])):
             if i % 2 == 0:
                 signal_66[signal_times >= t] = 1  # Set signal to 1 at even indices (rise)
             else:
                 signal_66[signal_times >= t] = 0  # Set signal to 0 at odd indices (fall)
 
+        signal_tr = np.zeros_like(signal_times)-1
+        for i, t in enumerate(np.sort(inputs_bounds[8:])):
+            if i % 2 == 0:
+                signal_tr[signal_times >= t] = 1  # Set signal to 1 at even indices (rise)
+            else:
+                signal_tr[signal_times >= t] = -1  # Set signal to 0 at odd indices (fall)
+
 
         man = StateManager()
-        manualActions:List[ManualActions] = generateManualActions(signal_55=signal_55, signal_66=signal_66)
+        manualActions:List[ManualActions] = generateManualActions(signal_55=signal_55, signal_66=signal_66, signal_turnRight=signal_tr)
         flags, motorThread, setServo, rover = man(manualActions, T)
 
         
@@ -555,13 +566,16 @@ if __name__ == "__main__":
     
     VELOCITY = 1
     OMEGA = np.pi/4
-    TURN_RIGHT:int = 1
     
     rng = np.random.default_rng(12346)
     T = 50 
 
 
-    init_conditions = [[0,1],[0,1],[0,1],[0,1], [0,1],[0,1],[0,1],[0,1]]
+    init_conditions = [
+                        [0,1],[0,1],[0,1],[0,1], 
+                        [0,1],[0,1],[0,1],[0,1],
+                        [0,1],[0,1],[0,1],[0,1]
+                    ]
     options = Options(runs=1, iterations=1, interval=(0, T), signals = [], static_parameters=init_conditions)
 
 
