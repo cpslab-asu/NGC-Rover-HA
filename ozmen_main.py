@@ -617,8 +617,8 @@ if __name__ == "__main__":
     res = simulate_model(model, options, sample)
     # spec_1 = f"((f <= -1) and (state <= 4.5) and (state >= 2.5)) -> (F[0,{T/4}] (delta < 0))"
     # spec_2 = f"((f >= 1) and (state <= 4.5) and (state >= 2.5)) -> (F[0,{T/4}] (delta > 0))"
-    spec_1 = f"((f == -1) and (state > 4.5)) -> (F[0,{T/4}] (delta < -1e-3 or delta > 1e-3))"
-    spec_2 = f"((f ==  1) and (state > 4.5)) -> (F[0,{T/4}] (delta < -1e-3 or delta > 1e-3))"
+    spec_1 = f"((f == -1) and (state > 4.5) and (state < 6)) -> (F[0,{T/4}] (delta < -1e-3 or delta > 1e-3))"
+    spec_2 = f"((f ==  1) and (state > 4.5) and (state < 6)) -> (F[0,{T/4}] (delta < -1e-3 or delta > 1e-3))"
     phi = f"G({spec_1} or {spec_2})"
     req = RTAMTDense(phi, {"f":4, "state":3, "delta": 5})
 
