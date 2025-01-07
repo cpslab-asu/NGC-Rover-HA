@@ -16,6 +16,8 @@ if typing.TYPE_CHECKING:
 
 @dc.dataclass(frozen=True, slots=True)
 class Flags:
+    """State of the internal flags of the system."""
+
     autodrive: bool = dc.field(default=False)
     update_compass: bool = dc.field(default=False)
     update_gps: bool = dc.field(default=False)
@@ -25,6 +27,8 @@ class Flags:
 
 @dc.dataclass(frozen=True, slots=True)
 class Model:
+    """Wrapper class to avoid setting rover properties unintentionally in states."""
+
     rover: rover.Rover
 
     @property
@@ -38,19 +42,35 @@ class Model:
 
 @dc.dataclass(frozen=True, slots=True)
 class State(abc.ABC):
-    flags: Flags
+    """An abstract system state representing a behavior of the system."""
+
     model: Model
+    flags: Flags
     
     @abc.abstractmethod
     def next(self, cmd: Command | None) -> State:
+        """Advance the system to the next state."""
+
         ...
 
     @property
     def velocity(self) -> float:
+        """The linear velocity of the vehicle for the given state.
+
+        This property should be overridden by state implementations in which the system is intended
+        to be moving.
+        """
+
         return 0.0
 
     @property
     def omega(self) -> float:
+        """The angular velocity of the vehicle for the given state.
+
+        This property should be overridden by state implementations in which the system is intended
+        to be turning.
+        """
+
         return 0.0
 
 
@@ -68,12 +88,12 @@ class S1(State):
     def next(self, cmd: Command | None) -> State:
         if self.time >= 5:
             return S2(
-                flags=dc.replace(self.flags, autodrive=True),
                 model=self.model,
-                last_position=(0,0,0),
+                flags=dc.replace(self.flags, autodrive=True),
+                last_position=self.model.position,
             )
 
-        return S1(self.flags, self.model, time=self.time + 1)
+        return S1(self.model, self.flags, time=self.time + 1)
 
 
 def euclidean_distance(p1: Position, p2: Position) -> float:
@@ -99,19 +119,19 @@ class S2(State):
 
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
-            return S6(self.flags, self.model)
+            return S6(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         position = self.model.position
         distance = euclidean_distance(position, self.last_position)
 
         if distance >= 7:
             return S3(
-                flags=dc.replace(self.flags, check_position=False, update_compass=True),
                 model=self.model,
+                flags=dc.replace(self.flags, check_position=False, update_compass=True),
                 initial_heading=self.model.heading,
             )
         
-        return S2(self.flags, self.model, last_position=position)
+        return S2(self.model, self.flags, last_position=position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -131,10 +151,7 @@ class S3(State):
 
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
-            return S8(
-                flags=dc.replace(self.flags, autodrive=False, check_position=False),
-                model=self.model,
-            )
+            return S8(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         heading = self.model.heading
         degrees = math.fabs(heading - self.initial_heading)
@@ -145,7 +162,7 @@ class S3(State):
                 model=self.model,
             )
         
-        return S3(self.flags, self.model, self.initial_heading)
+        return S3(self.model, self.flags, self.initial_heading)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -156,11 +173,15 @@ class S4(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
         assert not self.flags.move
+
+    @property
+    def omega(self) -> float:
+        return 1.0
     
     def next(self, cmd: Command | None) -> State:
         return S5(
-            flags=dc.replace(self.flags, update_gps=False, move=True),
             model=self.model,
+            flags=dc.replace(self.flags, update_gps=False, move=True),
             last_position=self.model.position,
         )
 
@@ -175,13 +196,14 @@ class S5(State):
         assert not self.flags.update_gps
         assert not self.flags.update_compass
         assert not self.flags.check_position
+
+    @property
+    def velocity(self) -> float:
+        return 1.0
     
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
-            return S7(
-                flags=dc.replace(self.flags, autodrive=False, check_position=False),
-                model=self.model,
-            )
+            return S7(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         position = self.model.position
         distance = euclidean_distance(self.last_position, position)
@@ -189,7 +211,7 @@ class S5(State):
         if distance >= 7:
             return S6(flags=dc.replace(self.flags, autodrive=False, move=False), model=self.model)
 
-        return S5(self.flags, self.model, last_position=position)
+        return S5(self.model, self.flags, last_position=position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -202,7 +224,7 @@ class S6(State):
         assert not self.flags.check_position
 
     def next(self, cmd: Command | None) -> State:
-         return S6(self.flags, self.model)
+         return S6(self.model, self.flags)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -214,11 +236,15 @@ class S7(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
 
+    @property
+    def velocity(self) -> float:
+        return 1.0
+
     def next(self, cmd: Command | None) -> State:
         if cmd == 55:
-            return S9(self.flags, self.model)
+            return S9(self.model, self.flags)
         
-        return S6(flags=dc.replace(self.flags, move=False), model=self.model)
+        return S6(self.model, flags=dc.replace(self.flags, move=False))
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -230,8 +256,12 @@ class S8(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    @property
+    def omega(self) -> float:
+        return 1.0
+
     def next(self, cmd: Command | None) -> State:
-        return S7(flags=dc.replace(self.flags, move=True, update_compass=False), model=self.model)
+        return S7(self.model, flags=dc.replace(self.flags, move=True, update_compass=False))
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -244,7 +274,7 @@ class S9(State):
         assert not self.flags.update_gps
 
     def next(self, cmd: Command | None) -> State:
-        return S9(self.flags, self.model)
+        return S9(self.model, self.flags)
 
 
 class Automaton:
