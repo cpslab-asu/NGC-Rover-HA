@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from logging import NullHandler, getLogger
 from math import pi
 from threading import Lock
 
@@ -11,6 +10,7 @@ from gz.msgs10.actuators_pb2 import Actuators
 from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
+
 
 @dataclass()
 class PoseHandler:
@@ -59,7 +59,8 @@ class Rover:
     _node: Node = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
-    _velocity: float = field(default=0.0)
+    _velocity: float = field(default=0.0, init=False)
+    _omega: float = field(default=0.0, init=False)
 
     @property
     def clock(self) -> float:
@@ -73,34 +74,18 @@ class Rover:
     def heading(self) -> float:
         return self._pose.heading
 
-    @heading.setter
-    def heading(self, target: float):
-        logger = getLogger("rover.attitude")
-        logger.addHandler(NullHandler())
+    @property
+    def omega(self) -> float:
+        return self._omega
 
-        old_velocity = self.velocity
-        difference = target - self.heading
-
-        if difference < -1:
-            left_velocity = 1
-            right_velocity = 1
-        elif difference > 1:
-            left_velocity = -1
-            right_velocity = -1
-        else:
-            left_velocity = 0
-            right_velocity = 0
-
+    @omega.setter
+    def omega(self, target: float):
         msg = Actuators()
-        msg.velocity.append(left_velocity)
-        msg.velocity.append(right_velocity)
+        msg.velocity.append(target)
+        msg.velocity.append(target)
+
         self._motors.publish(msg)
-
-        while abs(difference) > 1:
-            logger.debug(f"Heading: {self.heading}")
-            difference = target - self.heading
-
-        self.velocity = old_velocity
+        self._omega = target
 
     @property
     def velocity(self) -> float:
