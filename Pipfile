@@ -9,8 +9,11 @@ scipy = "*"
 numdifftools = "*"
 matplotlib = "*"
 psy-taliro = ">=1.0"
+pyzmq = "*"
+click = "*"
+apscheduler = "*"
+docker = "*"
+gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
 
 [dev-packages]
-
-[requires]
-python_version = "3.12"
+types-docker = "*"
