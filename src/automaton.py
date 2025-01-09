@@ -8,8 +8,6 @@ import typing
 import rover
 
 if typing.TYPE_CHECKING:
-    from collections.abc import Iterable
-    
     Position: typing.TypeAlias = tuple[float, float, float]
     Command = typing.Literal[55, 66]
 
@@ -73,6 +71,9 @@ class State(abc.ABC):
 
         return 0.0
 
+    def is_terminal(self) -> bool:
+        return False
+
 
 @dc.dataclass(frozen=True, slots=True)
 class S1(State):
@@ -90,7 +91,7 @@ class S1(State):
             return S2(
                 model=self.model,
                 flags=dc.replace(self.flags, autodrive=True),
-                last_position=self.model.position,
+                initial_position=self.model.position,
             )
 
         return S1(self.model, self.flags, time=self.time + 1)
@@ -104,7 +105,7 @@ def euclidean_distance(p1: Position, p2: Position) -> float:
 
 @dc.dataclass(frozen=True, slots=True)
 class S2(State):
-    last_position: tuple[float, float, float] = dc.field()
+    initial_position: tuple[float, float, float] = dc.field()
 
     def __post_init__(self):
         assert self.flags.check_position
@@ -122,7 +123,7 @@ class S2(State):
             return S6(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         position = self.model.position
-        distance = euclidean_distance(position, self.last_position)
+        distance = euclidean_distance(position, self.initial_position)
 
         if distance >= 7:
             return S3(
@@ -131,7 +132,7 @@ class S2(State):
                 initial_heading=self.model.heading,
             )
         
-        return S2(self.model, self.flags, last_position=position)
+        return S2(self.model, self.flags, self.initial_position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -182,13 +183,13 @@ class S4(State):
         return S5(
             model=self.model,
             flags=dc.replace(self.flags, update_gps=False, move=True),
-            last_position=self.model.position,
+            initial_position=self.model.position,
         )
 
 
 @dc.dataclass(frozen=True, slots=True)
 class S5(State):
-    last_position: Position
+    initial_position: Position
     
     def __post_init__(self):
         assert self.flags.autodrive
@@ -206,12 +207,12 @@ class S5(State):
             return S7(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         position = self.model.position
-        distance = euclidean_distance(self.last_position, position)
+        distance = euclidean_distance(self.initial_position, position)
 
         if distance >= 7:
             return S6(flags=dc.replace(self.flags, autodrive=False, move=False), model=self.model)
 
-        return S5(self.model, self.flags, last_position=position)
+        return S5(self.model, self.flags, self.initial_position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -222,6 +223,9 @@ class S6(State):
         assert not self.flags.update_gps
         assert not self.flags.update_compass
         assert not self.flags.check_position
+
+    def is_terminal(self) -> bool:
+        return True
 
     def next(self, cmd: Command | None) -> State:
          return S6(self.model, self.flags)
@@ -273,26 +277,21 @@ class S9(State):
         assert not self.flags.check_position
         assert not self.flags.update_gps
 
+    def is_terminal(self) -> bool:
+        return True
+
     def next(self, cmd: Command | None) -> State:
         return S9(self.model, self.flags)
 
 
 class Automaton:
-    def __init__(self, world: str = "default"):
-        self.vehicle = rover.spawn(world)
+    def __init__(self, vehicle: rover.Rover):
+        self.vehicle = vehicle
         self.state: State = S1(flags=Flags(), model=Model(self.vehicle), time=0)
         self.history: list[State] = []
 
-    def step(self, cmds: Iterable[Command | None]):
-        cmds = iter(cmds)
-        
-        while True:
-            self.history.append(self.state)
-
-            if isinstance(self.state, (S6, S9)):
-                break
-
-            cmd = next(cmds)
-            self.state = self.state.next(cmd)
-            self.vehicle.velocity = self.state.velocity
-            self.vehicle.omega = self.state.omega
+    def step(self, cmd: Command | None):
+        self.history.append(self.state)
+        self.state = self.state.next(cmd)
+        self.vehicle.velocity = self.state.velocity
+        self.vehicle.omega = self.state.omega
