@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import pi
 from threading import Lock
+from typing import Protocol
 
 from gz.transport13 import Node, Publisher, SubscribeOptions
 from gz.math7 import Quaterniond
@@ -62,11 +63,25 @@ class PoseHandler:
             return self._position
 
 
+class Magnet(Protocol):
+    def offset(self, time: float) -> float:
+        ...
+
+
+class StationaryMagnet(Magnet):
+    def __init__(self, magnitude: float):
+        self.magnitude = magnitude
+
+    def offset(self, time: float) -> float:
+        return self.magnitude
+
+
 @dataclass()
 class Rover:
     _node: Node = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
+    _magnet: Magnet = field()
     _velocity: float = field(default=0.0, init=False)
     _omega: float = field(default=0.0, init=False)
 
@@ -121,7 +136,7 @@ class TransportError(RoverError):
     pass
 
 
-def spawn(world: str, *, name: str = "r1_rover") -> Rover:
+def spawn(world: str, *, name: str = "r1_rover", magnet: Magnet | None) -> Rover:
     node = Node()
     motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
 
@@ -147,4 +162,7 @@ def spawn(world: str, *, name: str = "r1_rover") -> Rover:
     if not node.subscribe(Pose_V, f"/world/{world}/pose/info", pose, pose_options):
         raise TransportError()
 
-    return Rover(node, motors, pose)
+    if magnet is None:
+        magnet = StationaryMagnet(0.0)
+
+    return Rover(node, motors, pose, magnet)
