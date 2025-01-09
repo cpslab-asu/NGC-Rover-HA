@@ -17,6 +17,7 @@ class PoseHandler:
     _name: str = field() 
     _lock: Lock = field(default_factory=Lock, init=False)
     _heading: float = field(default=0.0, init=False)
+    _roll: float = field(default=0.0, init=False)
     _position: tuple[float, float, float] = field(default=(0.0, 0.0, 0.0), init=False)
     _clock: float = field(default=0.0, init=False)
 
@@ -32,7 +33,9 @@ class PoseHandler:
                 )
 
                 with self._lock:
-                    self._heading = q.euler().z()
+                    euler = q.euler()
+                    self._heading = euler.z()
+                    self._roll = euler.y()
                     self._position = (pose.position.x, pose.position.y, pose.position.z)
                     self._clock = time
 
@@ -47,6 +50,11 @@ class PoseHandler:
     def heading(self) -> float:
         with self._lock:
             return self._heading * (180 / pi)
+
+    @property
+    def roll(self) -> float:
+        with self._lock:
+            return self._roll
 
     @property
     def position(self) -> tuple[float, float, float]:
@@ -73,6 +81,10 @@ class Rover:
     @property
     def heading(self) -> float:
         return self._pose.heading
+
+    @property
+    def roll(self) -> float:
+        return self._pose.roll
 
     @property
     def omega(self) -> float:
