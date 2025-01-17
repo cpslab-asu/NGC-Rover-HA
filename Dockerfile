@@ -35,9 +35,15 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get clean
 
 RUN mkdir /app
+WORKDIR /app
 ADD --keep-git-dir=false https://github.com/px4/px4-gazebo-models.git /app/resources
 COPY --from=build /tmp/.venv /app/.venv
 COPY ./src /app/src
 
-WORKDIR /app
+COPY <<EOF /usr/local/bin/publisher
+#!/usr/bin/env bash
+/app/.venv/bin/python3 /app/src/publisher.py $@
+EOF
+RUN chmod +x /usr/local/bin/publisher
+
 CMD ["/app/.venv/bin/python3", "/app/src/main.py"]
