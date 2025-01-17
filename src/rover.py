@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from logging import Logger, NullHandler, getLogger
 from math import pi
 from threading import Lock
 
@@ -15,6 +16,13 @@ import attack
 import automaton
 
 
+def _pose_logger() -> Logger:
+    logger = getLogger("rover.PoseHandler")
+    logger.addHandler(NullHandler())
+
+    return logger
+
+
 @dataclass()
 class PoseHandler:
     _name: str = field() 
@@ -23,10 +31,13 @@ class PoseHandler:
     _roll: float = field(default=0.0, init=False)
     _position: tuple[float, float, float] = field(default=(0.0, 0.0, 0.0), init=False)
     _clock: float = field(default=0.0, init=False)
+    _logger: Logger = field(default_factory=_pose_logger, init=False)
 
     def __call__(self, msg: Pose_V):
         for pose in msg.pose:
             if pose.name == self._name:
+                self._logger.debug(f"Received pose: {pose}")
+
                 time = msg.header.stamp.sec + msg.header.stamp.nsec / 1e9
                 q = Quaterniond(
                     pose.orientation.w,
@@ -96,12 +107,13 @@ class Rover(automaton.Vehicle):
 
     @omega.setter
     def omega(self, target: float):
-        msg = Actuators()
-        msg.velocity.append(target)
-        msg.velocity.append(target)
+        if target != self._omega:
+            msg = Actuators()
+            msg.velocity.append(target)
+            msg.velocity.append(target)
 
-        self._motors.publish(msg)
-        self._omega = target
+            self._motors.publish(msg)
+            self._omega = target
 
     @property
     def velocity(self) -> float:
@@ -109,12 +121,13 @@ class Rover(automaton.Vehicle):
 
     @velocity.setter
     def velocity(self, target: float):
-        msg = Actuators()
-        msg.velocity.append(-target)
-        msg.velocity.append(target)
+        if target != self._velocity:
+            msg = Actuators()
+            msg.velocity.append(-target)
+            msg.velocity.append(target)
 
-        self._motors.publish(msg)
-        self._velocity = target
+            self._motors.publish(msg)
+            self._velocity = target
 
 
 class RoverError(Exception):
@@ -125,13 +138,11 @@ class TransportError(RoverError):
     pass
 
 
-def spawn(world: str, *, name: str = "r1_rover", magnet: Magnet | None) -> Rover:
+def spawn(world: str, *, name: str = "r1_rover", magnet: attack.Magnet | None) -> Rover:
+    logger = getLogger("rover")
+    logger.addHandler(NullHandler())
+
     node = Node()
-    motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
-
-    if not motors.valid():
-        raise TransportError("Could not register publisher for motor control")
-
     msg = EntityFactory()
     msg.sdf_filename = "r1_rover/model.sdf"
     msg.name = name
@@ -144,6 +155,14 @@ def spawn(world: str, *, name: str = "r1_rover", magnet: Magnet | None) -> Rover
     if not rep.data:
         raise RoverError("Could not create rover Gazebo model")
 
+    logger.debug("Created rover model in gazebo world")
+    motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
+
+    if not motors.valid():
+        raise TransportError("Could not register publisher for motor control")
+
+    logger.debug("Created motor topic publisher")
+
     pose = PoseHandler(name)
     pose_options = SubscribeOptions()
     pose_options.msgs_per_sec = 10
@@ -152,6 +171,6 @@ def spawn(world: str, *, name: str = "r1_rover", magnet: Magnet | None) -> Rover
         raise TransportError()
 
     if magnet is None:
-        magnet = StationaryMagnet(0.0)
+        magnet = attack.StationaryMagnet(0.0)
 
     return Rover(node, motors, pose, magnet)
