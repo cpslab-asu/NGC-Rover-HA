@@ -12,6 +12,8 @@ from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
 
+import attack
+
 
 @dataclass()
 class PoseHandler:
@@ -63,25 +65,12 @@ class PoseHandler:
             return self._position
 
 
-class Magnet(Protocol):
-    def offset(self, time: float) -> float:
-        ...
-
-
-class StationaryMagnet(Magnet):
-    def __init__(self, magnitude: float):
-        self.magnitude = magnitude
-
-    def offset(self, time: float) -> float:
-        return self.magnitude
-
-
 @dataclass()
 class Rover:
     _node: Node = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
-    _magnet: Magnet = field()
+    _magnet: attack.Magnet = field()
     _velocity: float = field(default=0.0, init=False)
     _omega: float = field(default=0.0, init=False)
 
