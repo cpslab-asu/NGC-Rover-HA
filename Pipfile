@@ -3,15 +3,15 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
-[packages]
-numpy = "*"
-scipy = "*"
-numdifftools = "*"
-matplotlib = "*"
+[publisher]
+apscheduler = "*"
+click = "*"
+pyzmq = "*"
+
+[tests]
+click = "*"
 psy-taliro = ">=1.0"
 pyzmq = "*"
-click = "*"
-apscheduler = "*"
 docker = "*"
 gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
 
