@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from math import pi
 from threading import Lock
-from typing import Protocol
 
 from gz.transport13 import Node, Publisher, SubscribeOptions
 from gz.math7 import Quaterniond
@@ -13,6 +12,7 @@ from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
 
 import attack
+import automaton
 
 
 @dataclass()
@@ -66,7 +66,7 @@ class PoseHandler:
 
 
 @dataclass()
-class Rover:
+class Rover(automaton.Vehicle):
     _node: Node = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()

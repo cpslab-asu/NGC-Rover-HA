@@ -5,11 +5,8 @@ import dataclasses as dc
 import math
 import typing
 
-import rover
-
-if typing.TYPE_CHECKING:
-    Position: typing.TypeAlias = tuple[float, float, float]
-    Command = typing.Literal[55, 66]
+Position: typing.TypeAlias = tuple[float, float, float]
+Command = typing.Literal[55, 66]
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -23,19 +20,34 @@ class Flags:
     move: bool = dc.field(default=False)
 
 
-@dc.dataclass(frozen=True, slots=True)
-class Model:
+class Model(typing.Protocol):
     """Wrapper class to avoid setting rover properties unintentionally in states."""
-
-    rover: rover.Rover
 
     @property
     def position(self) -> Position:
-        return self.rover.position
+        ...
 
     @property
     def heading(self) -> float:
-        return self.rover.heading
+        ...
+
+
+class Vehicle(Model):
+    @property
+    def velocity(self) -> float:
+        ...
+
+    @velocity.setter
+    def velocity(self, target: float):
+        ...
+
+    @property
+    def omega(self) -> float:
+        ...
+
+    @omega.setter
+    def omega(self, target: float):
+        ...
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -285,9 +297,9 @@ class S9(State):
 
 
 class Automaton:
-    def __init__(self, vehicle: rover.Rover):
+    def __init__(self, vehicle: Vehicle):
         self.vehicle = vehicle
-        self.state: State = S1(flags=Flags(), model=Model(self.vehicle), time=0)
+        self.state: State = S1(flags=Flags(), model=vehicle, time=0)
         self.history: list[State] = []
 
     def step(self, cmd: Command | None):
