@@ -14,7 +14,7 @@ WORKDIR /tmp
 COPY ./Pipfile ./Pipfile.lock .
 
 ENV PIPENV_VENV_IN_PROJECT=1 
-RUN /opt/pipenv/bin/pipenv sync --python /usr/bin/python3 --site-packages
+RUN /opt/pipenv/bin/pipenv sync --python /usr/bin/python3 --site-packages --categories publisher
 
 FROM ubuntu:22.04
 
