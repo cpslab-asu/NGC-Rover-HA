@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import collections.abc
 import contextlib
 import dataclasses as dc
+import itertools
 import pathlib
 import tempfile
 import typing
@@ -15,17 +17,21 @@ import staliro.optimizers
 import staliro.specifications.rtamt
 import zmq
 
-import publisher
+import attack
+import automaton
 
 if typing.TYPE_CHECKING:
     from collections.abc import Generator
+
+GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/gzcm/px4/gazebo:harmonic"
+GZ_WORLD: typing.Final[str] = "generated"
 
 
 @contextlib.contextmanager
 def temp_path() -> Generator[pathlib.Path, None, None]:
     with tempfile.TemporaryDirectory() as tempdir:
         try:
-            yield pathlib.Path(tempdir) / "socket"
+            yield pathlib.Path(tempdir) / "transport.sock"
         finally:
             pass
 
@@ -42,39 +48,70 @@ def create_socket(path: pathlib.Path) -> Generator[zmq.Socket, None, None]:
 
 
 @contextlib.contextmanager
-def rover_container(client: docker.DockerClient, sock_path: pathlib.Path):
+def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.Path):
     sock_dir = sock_path.parent
     container = client.containers.run(
-        image="",
+        image="ghcr.io/cpslab-asu/ngc-rover-ha/rover:latest",
+        command=f"publisher --world {world}",
         detach=True,
-        volumes={"/var/run/receiver": {"path": str(sock_dir), "mode": "rw"}},
+        volumes={
+            "/var/run/rover": {"path": str(sock_dir), "mode": "rw"},
+        },
     )
 
     try:
         yield container
     finally:
-        if container.status != "exited":
+        exit_code_str: str | None = container.attrs["Status"].get("ExitCode")
+        exit_code: int | None = int(exit_code_str) if exit_code_str else None
+
+        if container.status == "exited" and exit_code != 0:
+            raise RuntimeError("Automaton docker container exited abnormally. Please check container logs.")
+        elif container.status != "exited":
             container.kill()
             container.wait()
 
         container.remove()
 
 
-def run_simulation() -> publisher.Result:
+@dc.dataclass()
+class Step:
+    time: float
+    position: tuple[float, float, float]
+    heading: float
+    roll: float
+    state: automaton.State
+
+
+@dc.dataclass()
+class Result:
+    history: list[Step]
+
+
+@dc.dataclass()
+class Start:
+    commands: collections.abc.Iterable[automaton.Command | None]
+    magnet: attack.Magnet | None
+
+
+def run_simulation() -> Result:
     client = docker.from_env()
     gz = gzcm.Gazebo()
 
     with temp_path() as sock_path:
         with create_socket(sock_path) as sock:
-            with rover_container(client, sock_path) as rover:
-                with gzcm.gazebo.gazebo(gz, rover, client=client):
-                    sock.send_pyobj(None)
-                    result = sock.recv_pyobj()
+            with rover_container(client, GZ_WORLD, sock_path) as rover:
+                with gzcm.gazebo.gazebo(gz, rover, image=GZ_IMAGE, client=client, world=pathlib.Path(f"/tmp/{GZ_WORLD}.sdf")):
+                    sock.send_pyobj(Start(commands=itertools.repeat(None), magnet=None))
+                    msg = sock.recv_pyobj()
 
-                    if not isinstance(result, publisher.Result):
-                        raise TypeError(f"Unexpected type received {type(result)}")
+                    if isinstance(msg, Exception):
+                        raise msg
 
-                    return result
+                    if not isinstance(msg, Result):
+                        raise TypeError(f"Unexpected type received {type(msg)}")
+
+                    return msg
 
 
 @click.group()
@@ -101,7 +138,7 @@ def cpv1():
         return staliro.Trace(trace)
 
 
-    spec = staliro.specifications.rtamt.parse_dense("always (x > 0)")
+    spec = staliro.specifications.rtamt.parse_dense("always (x > 0)")  # Use reference trajectory to assert error never exceeds given bound
     opt = staliro.optimizers.UniformRandom() # TODO: replace with SOAR
     opts = staliro.TestOptions(
         runs=1,
