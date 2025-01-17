@@ -1,59 +1,96 @@
 from __future__ import annotations
 
+from itertools import repeat
 from pathlib import Path
+from pprint import pprint
+from logging import DEBUG, NullHandler, basicConfig, getLogger
 
 import apscheduler.schedulers.blocking as sched
 import click
 import zmq
 
 import automaton
+import messages
 import rover
-import test
 
 
 class PublisherError(Exception):
     pass
 
 
+def run(world: str, frequency: int, msg: messages.Start) -> list[messages.Step]:
+    logger = getLogger("publisher")
+    logger.addHandler(NullHandler())
+
+    cmds = iter(msg.commands)
+    vehicle = rover.spawn(world, magnet=msg.magnet)
+    controller = automaton.Automaton(vehicle)
+    scheduler = sched.BlockingScheduler()
+    history: list[messages.Step] = []
+
+    def update():
+        logger.debug("Running controller update")
+        history.append(
+            messages.Step(
+                time=vehicle.clock,
+                position=vehicle.position,
+                heading=vehicle.heading,
+                roll=vehicle.roll,
+                state=controller.state,
+            )
+        )
+
+        if controller.state.is_terminal():
+            logger.debug("Found terminal state. Shutting down scheduler.")
+            scheduler.shutdown()
+        else:
+            last_state = controller.state
+            controller.step(next(cmds))
+            logger.debug(f"Stepping controller. Last state: {last_state} -> Current state: {controller.state}")
+
+    logger.debug("Creating controller scheduler job")
+    scheduler.add_job(update, "interval", seconds=1/frequency)
+
+    logger.debug("Starting scheduler")
+    scheduler.start()
+
+    return history
+
+
 @click.command()
 @click.option("-w", "--world", default="default")
 @click.option("-f", "--frequency", type=int, default=1)
-@click.option("-s", "--socket", "socket_path", type=click.Path(exists=True, dir_okay=False, writable=True, path_type=Path), default=Path("/var/run/rover/transport.sock"))
-def main(world: str, frequency: int, socket_path: Path):
-    with zmq.Context() as ctx:
-        with ctx.socket(zmq.REP) as sock:
-            with sock.connect(str(socket_path)):
-                msg = sock.recv_pyobj()
+@click.option("-s", "--socket", "socket_path", type=click.Path(exists=True, dir_okay=False, writable=True, path_type=Path), default=None)
+@click.option("-v", "--verbose", is_flag=True)
+def publisher(world: str, frequency: int, socket_path: Path | None, verbose: bool):
+    logger = getLogger("publisher")
+    logger.addHandler(NullHandler())
 
-                if not isinstance(msg, test.Start):
-                    sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
+    if verbose:
+        basicConfig(level=DEBUG)
 
-                cmds = iter(msg.commands)
-                vehicle = rover.spawn(world, magnet=msg.magnet)
-                controller = automaton.Automaton(vehicle)
-                scheduler = sched.BlockingScheduler()
-                history: list[test.Step] = []
+    if socket_path is None:
+        logger.debug("No socket provided, starting controller using defaults.")
 
-                def update():
-                    history.append(
-                        test.Step(
-                            time=vehicle.clock,
-                            position=vehicle.position,
-                            heading=vehicle.heading,
-                            roll=vehicle.roll,
-                            state=controller.state,
-                        )
-                    )
+        msg = messages.Start(commands=repeat(None), magnet=None)
+        history = run(world, frequency, msg)
 
-                    if controller.state.is_terminal():
-                        sock.send_pyobj(test.Result(history))
-                        scheduler.shutdown()
-                    else:
-                        controller.step(next(cmds))
+        pprint(history)
+    else:
 
-                scheduler.add_job(update, "interval", seconds=1/frequency)
-                scheduler.start()
+        with zmq.Context() as ctx:
+            with ctx.socket(zmq.REP) as sock:
+                with sock.connect(str(socket_path)):
+                    logger.debug("Listening for start message.")
+                    msg = sock.recv_pyobj()
+
+                    if not isinstance(msg, messages.Start):
+                        sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
+
+                    logger.debug("Start message received. Running simulation.")
+                    history = run(world, frequency, msg)
+                    sock.send_pyobj(messages.Result(history))
 
 
 if __name__ == "__main__":
-    main()
+    publisher()
