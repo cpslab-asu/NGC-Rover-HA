@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import collections.abc
 import contextlib
-import dataclasses as dc
 import itertools
 import pathlib
 import tempfile
@@ -17,8 +15,7 @@ import staliro.optimizers
 import staliro.specifications.rtamt
 import zmq
 
-import attack
-import automaton
+import messages
 
 if typing.TYPE_CHECKING:
     from collections.abc import Generator
@@ -74,27 +71,7 @@ def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.
         container.remove()
 
 
-@dc.dataclass()
-class Step:
-    time: float
-    position: tuple[float, float, float]
-    heading: float
-    roll: float
-    state: automaton.State
-
-
-@dc.dataclass()
-class Result:
-    history: list[Step]
-
-
-@dc.dataclass()
-class Start:
-    commands: collections.abc.Iterable[automaton.Command | None]
-    magnet: attack.Magnet | None
-
-
-def run_simulation() -> Result:
+def run_simulation() -> messages.Result:
     client = docker.from_env()
     gz = gzcm.Gazebo()
 
@@ -102,13 +79,13 @@ def run_simulation() -> Result:
         with create_socket(sock_path) as sock:
             with rover_container(client, GZ_WORLD, sock_path) as rover:
                 with gzcm.gazebo.gazebo(gz, rover, image=GZ_IMAGE, client=client, world=pathlib.Path(f"/tmp/{GZ_WORLD}.sdf")):
-                    sock.send_pyobj(Start(commands=itertools.repeat(None), magnet=None))
+                    sock.send_pyobj(messages.Start(commands=itertools.repeat(None), magnet=None))
                     msg = sock.recv_pyobj()
 
                     if isinstance(msg, Exception):
                         raise msg
 
-                    if not isinstance(msg, Result):
+                    if not isinstance(msg, messages.Result):
                         raise TypeError(f"Unexpected type received {type(msg)}")
 
                     return msg
