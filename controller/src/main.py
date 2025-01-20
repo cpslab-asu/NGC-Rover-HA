@@ -9,29 +9,29 @@ import apscheduler.schedulers.blocking as sched
 import click
 import zmq
 
-import automaton
-import messages
 import rover
+import controller.messages as msgs
+import controller.automaton as ha
 
 
 class PublisherError(Exception):
     pass
 
 
-def run(world: str, frequency: int, msg: messages.Start) -> list[messages.Step]:
+def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
     logger = getLogger("publisher")
     logger.addHandler(NullHandler())
 
     cmds = iter(msg.commands)
     vehicle = rover.spawn(world, magnet=msg.magnet)
-    controller = automaton.Automaton(vehicle)
+    controller = ha.Automaton(vehicle)
     scheduler = sched.BlockingScheduler()
-    history: list[messages.Step] = []
+    history: list[msgs.Step] = []
 
     def update():
         logger.debug("Running controller update")
         history.append(
-            messages.Step(
+            msgs.Step(
                 time=vehicle.clock,
                 position=vehicle.position,
                 heading=vehicle.heading,
@@ -72,7 +72,7 @@ def controller(world: str, frequency: int, socket_path: Path | None, verbose: bo
     if socket_path is None:
         logger.debug("No socket provided, starting controller using defaults.")
 
-        msg = messages.Start(commands=repeat(None), magnet=None)
+        msg = msgs.Start(commands=repeat(None), magnet=None)
         history = run(world, frequency, msg)
 
         pprint(history)
@@ -84,12 +84,12 @@ def controller(world: str, frequency: int, socket_path: Path | None, verbose: bo
                     logger.debug("Listening for start message.")
                     msg = sock.recv_pyobj()
 
-                    if not isinstance(msg, messages.Start):
+                    if not isinstance(msg, msgs.Start):
                         sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
 
                     logger.debug("Start message received. Running simulation.")
                     history = run(world, frequency, msg)
-                    sock.send_pyobj(messages.Result(history))
+                    sock.send_pyobj(msgs.Result(history))
 
 
 if __name__ == "__main__":

@@ -12,8 +12,7 @@ from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
 
-import attack
-import automaton
+from controller import attack, automaton
 
 
 def _pose_logger() -> Logger:
