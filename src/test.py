@@ -71,7 +71,7 @@ def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.
         container.remove()
 
 
-def run_simulation() -> messages.Result:
+def simulate() -> messages.Result:
     client = docker.from_env()
     gz = gzcm.Gazebo()
 
@@ -100,7 +100,7 @@ def test():
 def cpv1():
     @staliro.models.model()
     def model(sample: staliro.Sample) -> staliro.Trace[dict[str, float]]:
-        sim_result = run_simulation()
+        sim_result = simulate()
         trace = {
             step.time: {
                 "x": step.position[0],
