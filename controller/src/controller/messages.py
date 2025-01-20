@@ -3,8 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-import attack
-import automaton
+from controller import attack, automaton
 
 
 @dataclass()
