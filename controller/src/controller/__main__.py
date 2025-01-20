@@ -62,7 +62,7 @@ def run(world: str, frequency: int, msg: messages.Start) -> list[messages.Step]:
 @click.option("-f", "--frequency", type=int, default=1)
 @click.option("-s", "--socket", "socket_path", type=click.Path(exists=True, dir_okay=False, writable=True, path_type=Path), default=None)
 @click.option("-v", "--verbose", is_flag=True)
-def publisher(world: str, frequency: int, socket_path: Path | None, verbose: bool):
+def controller(world: str, frequency: int, socket_path: Path | None, verbose: bool):
     logger = getLogger("publisher")
     logger.addHandler(NullHandler())
 
@@ -93,4 +93,4 @@ def publisher(world: str, frequency: int, socket_path: Path | None, verbose: boo
 
 
 if __name__ == "__main__":
-    publisher()
+    controller()
