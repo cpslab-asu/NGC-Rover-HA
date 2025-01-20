@@ -3,17 +3,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
-[publisher]
-apscheduler = "*"
-click = "*"
-pyzmq = "*"
-
-[tests]
+[packages]
 click = "*"
 psy-taliro = ">=1.0"
 pyzmq = "*"
 docker = "*"
 gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
+controller = {file = "controller", editable=true}
 
 [dev-packages]
 types-docker = "*"
