@@ -1,9 +1,19 @@
-FROM ghcr.io/astral-sh/uv:debian AS build
+FROM ubuntu:22.04 AS build
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip
+
+RUN pip install uv
 
 RUN mkdir /app
 COPY ./pyproject.toml ./uv.lock /app
-RUN uv venv --project /app --system-site-packages --python /usr/bin/python3 --relocatable
-RUN uv sync --project /app --locked 
+RUN uv venv \
+    --project /app \
+    --system-site-packages \
+    --python 3.10 \
+    --python-preference only-system \
+    --relocatable
+RUN uv sync --project /app --locked --no-install-project
 
 FROM ubuntu:22.04
 
@@ -18,13 +28,23 @@ ENV OSRF_GPG_PATH=
 RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
-        python3-gz-transport13 \
+        python3-gz-math7 \
         python3-gz-msgs10 \
+        python3-gz-transport13 \
         && \
     DEBIAN_FRONTEND=noninteractive apt-get clean
 
 COPY --from=build /app /app
 COPY ./src /app/src
 ADD --keep-git-dir=false https://github.com/px4/px4-gazebo-models.git /app/resources
+
+COPY <<EOF /usr/local/bin/controller
+#!/usr/bin/bash
+
+/app/.venv/bin/python3 /app/src/main.py \$@
+EOF
+
+RUN chmod +x /usr/local/bin/controller
+
 
 CMD ["/app/.venv/bin/controller"]
