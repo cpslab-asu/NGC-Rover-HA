@@ -15,7 +15,7 @@ import staliro.optimizers
 import staliro.specifications.rtamt
 import zmq
 
-import messages
+from controller import messages
 
 if typing.TYPE_CHECKING:
     from collections.abc import Generator
