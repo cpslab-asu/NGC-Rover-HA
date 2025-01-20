@@ -11,5 +11,8 @@ docker = "*"
 gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
 controller = {file = "controller", editable=true}
 
+[scripts]
+test = "python3 src/test.py"
+
 [dev-packages]
 types-docker = "*"
