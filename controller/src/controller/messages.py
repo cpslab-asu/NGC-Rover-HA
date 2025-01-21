@@ -23,4 +23,5 @@ class Result:
 @dataclass()
 class Start:
     commands: Iterable[automaton.Command | None] = field()
-    magnet: attack.Magnet | None = field()
+    magnet: attack.Magnet | None = field(default=None)
+    speed: attack.SpeedController | None = field(default=None)
