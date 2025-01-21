@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from controller import attack, automaton
+from controller import attacks, automaton
 
 
 @dataclass()
@@ -23,5 +23,5 @@ class Result:
 @dataclass()
 class Start:
     commands: Iterable[automaton.Command | None] = field()
-    magnet: attack.Magnet | None = field(default=None)
-    speed: attack.SpeedController | None = field(default=None)
+    magnet: attacks.Magnet | None = field(default=None)
+    speed: attacks.SpeedController | None = field(default=None)

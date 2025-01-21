@@ -12,7 +12,7 @@ from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
 
-from controller import attack, automaton
+from controller import attacks, automaton
 
 
 def _pose_logger() -> Logger:
@@ -76,11 +76,11 @@ class PoseHandler:
 
 
 @dataclass()
-class Rover(automaton.Vehicle):
+class Rover(automaton.Model):
     _node: Node = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
-    _magnet: attack.Magnet = field()
+    _magnet: attacks.Magnet = field()
     _velocity: float = field(default=0.0, init=False)
     _omega: float = field(default=0.0, init=False)
 
@@ -137,7 +137,7 @@ class TransportError(RoverError):
     pass
 
 
-def spawn(world: str, *, name: str = "r1_rover", magnet: attack.Magnet | None) -> Rover:
+def spawn(world: str, *, name: str = "r1_rover", magnet: attacks.Magnet | None) -> Rover:
     logger = getLogger("rover")
     logger.addHandler(NullHandler())
 
@@ -170,6 +170,6 @@ def spawn(world: str, *, name: str = "r1_rover", magnet: attack.Magnet | None) -
         raise TransportError()
 
     if magnet is None:
-        magnet = attack.StationaryMagnet(0.0)
+        magnet = attacks.StationaryMagnet(0.0)
 
     return Rover(node, motors, pose, magnet)
