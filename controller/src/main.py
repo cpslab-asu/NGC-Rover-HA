@@ -3,6 +3,7 @@ from __future__ import annotations
 from itertools import repeat
 from pathlib import Path
 from pprint import pprint
+from time import time_ns
 from logging import DEBUG, NullHandler, basicConfig, getLogger
 
 import apscheduler.schedulers.blocking as sched
@@ -11,6 +12,7 @@ import zmq
 
 import rover
 import controller.messages as msgs
+import controller.attacks as atk
 import controller.automaton as ha
 
 
@@ -24,16 +26,23 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
 
     step_size: float = 1.0/frequency
     cmds = iter(msg.commands)
-    vehicle = rover.spawn(world, magnet=msg.magnet)
-    controller = ha.Automaton(vehicle, step_size)
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
 
+    speed_ctl = msg.speed or atk.FixedSpeed(1.0)
+    magnet = msg.magnet or atk.StationaryMagnet(0.0)
+    vehicle = rover.spawn(world, magnet=magnet)
+    controller = ha.Automaton(vehicle, step_size)
+
+    vehicle.wait()
+    tstart = vehicle.clock
+
     def update():
-        logger.debug("Running controller update")
+        tsim = vehicle.clock - tstart
+        logger.debug("Running controller update.")
         history.append(
             msgs.Step(
-                time=vehicle.clock,
+                time=tsim,
                 position=vehicle.position,
                 heading=vehicle.heading,
                 roll=vehicle.roll,
@@ -41,16 +50,15 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
             )
         )
 
-        vehicle.velocity = controller.state.velocity
-        vehicle.omega = controller.state.omega
+        speed = abs(speed_ctl.speed(tsim))
+        vehicle.velocity = speed * controller.velocity
+        vehicle.omega = speed * controller.omega
 
         if controller.state.is_terminal():
             logger.debug("Found terminal state. Shutting down scheduler.")
             scheduler.shutdown()
         else:
-            last_state = controller.state
             controller.step(next(cmds))
-            logger.debug(f"Stepping controller. Last state: {last_state} -> Current state: {controller.state}")
 
     logger.debug("Creating controller scheduler job")
     scheduler.add_job(update, "interval", seconds=step_size)
