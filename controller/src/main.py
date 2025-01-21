@@ -22,9 +22,10 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
     logger = getLogger("publisher")
     logger.addHandler(NullHandler())
 
+    step_size: float = 1.0/frequency
     cmds = iter(msg.commands)
     vehicle = rover.spawn(world, magnet=msg.magnet)
-    controller = ha.Automaton(vehicle)
+    controller = ha.Automaton(vehicle, step_size)
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
 
@@ -52,7 +53,7 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
             logger.debug(f"Stepping controller. Last state: {last_state} -> Current state: {controller.state}")
 
     logger.debug("Creating controller scheduler job")
-    scheduler.add_job(update, "interval", seconds=1/frequency)
+    scheduler.add_job(update, "interval", seconds=step_size)
 
     logger.debug("Starting scheduler")
     scheduler.start()
@@ -80,7 +81,6 @@ def controller(world: str, frequency: int, socket_path: Path | None, verbose: bo
 
         pprint(history)
     else:
-
         with zmq.Context() as ctx:
             with ctx.socket(zmq.REP) as sock:
                 with sock.connect(str(socket_path)):

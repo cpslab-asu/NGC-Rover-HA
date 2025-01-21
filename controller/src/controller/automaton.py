@@ -71,7 +71,8 @@ class State(abc.ABC):
 
 @dc.dataclass(frozen=True, slots=True)
 class S1(State):
-    time: int
+    time: float
+    step_size: float
 
     def __post_init__(self):
         assert self.flags.check_position
@@ -88,7 +89,7 @@ class S1(State):
                 initial_position=self.model.position,
             )
 
-        return S1(self.model, self.flags, time=self.time + 1)
+        return S1(self.model, self.flags, step_size=self.step_size, time=self.time + self.step_size)
 
 
 def euclidean_distance(p1: Position, p2: Position) -> float:
@@ -279,9 +280,9 @@ class S9(State):
 
 
 class Automaton:
-    def __init__(self, model: Model):
+    def __init__(self, model: Model, step_size: float):
         self.model = model
-        self.state: State = S1(flags=Flags(), model=model, time=0)
+        self.state: State = S1(flags=Flags(), model=model, time=0.0, step_size=step_size)
         self.history: list[State] = []
 
     def step(self, cmd: Command | None):
