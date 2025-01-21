@@ -6,7 +6,8 @@ import math
 import typing
 
 Position: typing.TypeAlias = tuple[float, float, float]
-Command = typing.Literal[55, 66]
+Command: typing.TypeAlias = typing.Literal[55, 66]
+Direction: typing.TypeAlias = typing.Literal[-1, 0, 1]
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -46,24 +47,24 @@ class State(abc.ABC):
         ...
 
     @property
-    def velocity(self) -> float:
+    def velocity(self) -> Direction:
         """The linear velocity of the vehicle for the given state.
 
         This property should be overridden by state implementations in which the system is intended
         to be moving.
         """
 
-        return 0.0
+        return 0
 
     @property
-    def omega(self) -> float:
+    def omega(self) -> Direction:
         """The angular velocity of the vehicle for the given state.
 
         This property should be overridden by state implementations in which the system is intended
         to be turning.
         """
 
-        return 0.0
+        return 0
 
     def is_terminal(self) -> bool:
         return False
@@ -110,8 +111,8 @@ class S2(State):
         assert not self.flags.move
 
     @property
-    def velocity(self) -> float:
-        return 1.0
+    def velocity(self) -> Direction:
+        return 1
 
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
@@ -142,8 +143,8 @@ class S3(State):
         assert not self.flags.move
 
     @property
-    def omega(self) -> float:
-        return 1.0
+    def omega(self) -> Direction:
+        return 1
 
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
@@ -171,8 +172,8 @@ class S4(State):
         assert not self.flags.move
 
     @property
-    def omega(self) -> float:
-        return 1.0
+    def omega(self) -> Direction:
+        return 1
     
     def next(self, cmd: Command | None) -> State:
         return S5(
@@ -194,8 +195,8 @@ class S5(State):
         assert not self.flags.check_position
 
     @property
-    def velocity(self) -> float:
-        return 1.0
+    def velocity(self) -> Direction:
+        return 1
     
     def next(self, cmd: Command | None) -> State:
         if cmd == 66:
@@ -236,8 +237,8 @@ class S7(State):
         assert not self.flags.check_position
 
     @property
-    def velocity(self) -> float:
-        return 1.0
+    def velocity(self) -> Direction:
+        return 1
 
     def next(self, cmd: Command | None) -> State:
         if cmd == 55:
@@ -256,8 +257,8 @@ class S8(State):
         assert not self.flags.move
 
     @property
-    def omega(self) -> float:
-        return 1.0
+    def omega(self) -> Direction:
+        return 1
 
     def next(self, cmd: Command | None) -> State:
         return S7(self.model, flags=dc.replace(self.flags, move=True, update_compass=False))
@@ -288,3 +289,11 @@ class Automaton:
     def step(self, cmd: Command | None):
         self.history.append(self.state)
         self.state = self.state.next(cmd)
+
+    @property
+    def velocity(self) -> Direction:
+        return self.state.velocity
+
+    @property
+    def omega(self) -> Direction:
+        return self.state.omega
