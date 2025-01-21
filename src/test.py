@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import itertools
+import logging
 import pathlib
 import tempfile
 import typing
@@ -56,6 +57,9 @@ def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.
         },
     )
 
+    while container.name is None:
+        container.reload()
+
     try:
         yield container
     finally:
@@ -72,14 +76,25 @@ def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.
 
 
 def simulate() -> messages.Result:
+    logger = logging.getLogger("test.simulation")
+    logger.addHandler(logging.NullHandler())
+
     client = docker.from_env()
     gz = gzcm.Gazebo()
 
     with temp_path() as sock_path:
         with create_socket(sock_path) as sock:
+            logger.debug(f"Created UNIX socket at path: {sock_path}")
+
             with rover_container(client, GZ_WORLD, sock_path) as rover:
+                logger.debug(f"Started rover controller container {rover.name}")
+
                 with gzcm.gazebo.gazebo(gz, rover, image=GZ_IMAGE, client=client, world=pathlib.Path(f"/tmp/{GZ_WORLD}.sdf")):
+                    logger.debug("Attached gazebo simulation to controller container.")
+
                     sock.send_pyobj(messages.Start(commands=itertools.repeat(None), magnet=None))
+                    logger.debug("Sent start message, waiting for result...")
+                    
                     msg = sock.recv_pyobj()
 
                     if isinstance(msg, Exception):
@@ -88,12 +103,15 @@ def simulate() -> messages.Result:
                     if not isinstance(msg, messages.Result):
                         raise TypeError(f"Unexpected type received {type(msg)}")
 
+                    logger.debug("Simulation completed. Shutting down containers.")
                     return msg
 
 
 @click.group()
-def test():
-    pass
+@click.option("-v", "--verbose", is_flag=True)
+def test(verbose: bool):
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG)
 
 
 @test.command()
