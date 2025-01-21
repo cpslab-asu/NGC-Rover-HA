@@ -40,6 +40,9 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
             )
         )
 
+        vehicle.velocity = controller.state.velocity
+        vehicle.omega = controller.state.omega
+
         if controller.state.is_terminal():
             logger.debug("Found terminal state. Shutting down scheduler.")
             scheduler.shutdown()

@@ -32,24 +32,6 @@ class Model(typing.Protocol):
         ...
 
 
-class Vehicle(Model):
-    @property
-    def velocity(self) -> float:
-        ...
-
-    @velocity.setter
-    def velocity(self, target: float):
-        ...
-
-    @property
-    def omega(self) -> float:
-        ...
-
-    @omega.setter
-    def omega(self, target: float):
-        ...
-
-
 @dc.dataclass(frozen=True, slots=True)
 class State(abc.ABC):
     """An abstract system state representing a behavior of the system."""
@@ -297,13 +279,11 @@ class S9(State):
 
 
 class Automaton:
-    def __init__(self, vehicle: Vehicle):
-        self.vehicle = vehicle
-        self.state: State = S1(flags=Flags(), model=vehicle, time=0)
+    def __init__(self, model: Model):
+        self.model = model
+        self.state: State = S1(flags=Flags(), model=model, time=0)
         self.history: list[State] = []
 
     def step(self, cmd: Command | None):
         self.history.append(self.state)
         self.state = self.state.next(cmd)
-        self.vehicle.velocity = self.state.velocity
-        self.vehicle.omega = self.state.omega
