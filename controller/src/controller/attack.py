@@ -14,3 +14,16 @@ class StationaryMagnet(Magnet):
 
     def offset(self, time: float) -> float:
         return self.magnitude
+
+
+class SpeedController:
+    def speed(self, time: float) -> float:
+        ...
+
+
+class FixedSpeed(SpeedController):
+    def __init__(self, magnitude: float):
+        self.magnitude = magnitude
+
+    def speed(self, time: float) -> float:
+        return self.magnitude
