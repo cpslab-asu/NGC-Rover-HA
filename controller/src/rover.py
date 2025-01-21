@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from logging import Logger, NullHandler, getLogger
 from math import pi
-from threading import Lock
+from threading import Event, Lock
 
 from gz.transport13 import Node, Publisher, SubscribeOptions
 from gz.math7 import Quaterniond
@@ -24,17 +24,18 @@ def _pose_logger() -> Logger:
 
 @dataclass()
 class PoseHandler:
-    _name: str = field() 
+    name: str = field()
     _lock: Lock = field(default_factory=Lock, init=False)
     _heading: float = field(default=0.0, init=False)
     _roll: float = field(default=0.0, init=False)
     _position: tuple[float, float, float] = field(default=(0.0, 0.0, 0.0), init=False)
     _clock: float = field(default=0.0, init=False)
     _logger: Logger = field(default_factory=_pose_logger, init=False)
+    _ready: Event = field(default_factory=Event, init=False)
 
     def __call__(self, msg: Pose_V):
         for pose in msg.pose:
-            if pose.name == self._name:
+            if pose.name == self.name:
                 self._logger.debug(f"Received pose: {pose}")
 
                 time = msg.header.stamp.sec + msg.header.stamp.nsec / 1e9
@@ -53,6 +54,9 @@ class PoseHandler:
                     self._clock = time
 
                 break
+
+        if not self._ready.is_set():
+            self._ready.set()
 
     @property
     def clock(self) -> float:
@@ -73,6 +77,9 @@ class PoseHandler:
     def position(self) -> tuple[float, float, float]:
         with self._lock:
             return self._position
+
+    def wait(self):
+        self._ready.wait()
 
 
 @dataclass()
@@ -127,6 +134,9 @@ class Rover(automaton.Model):
 
             self._motors.publish(msg)
             self._velocity = target
+
+    def wait(self):
+        self._pose.wait()
 
 
 class RoverError(Exception):
