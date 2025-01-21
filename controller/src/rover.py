@@ -147,7 +147,7 @@ class TransportError(RoverError):
     pass
 
 
-def spawn(world: str, *, name: str = "r1_rover", magnet: attacks.Magnet | None) -> Rover:
+def spawn(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> Rover:
     logger = getLogger("rover")
     logger.addHandler(NullHandler())
 
@@ -178,8 +178,5 @@ def spawn(world: str, *, name: str = "r1_rover", magnet: attacks.Magnet | None) 
 
     if not node.subscribe(Pose_V, f"/world/{world}/pose/info", pose, pose_options):
         raise TransportError()
-
-    if magnet is None:
-        magnet = attacks.StationaryMagnet(0.0)
 
     return Rover(node, motors, pose, magnet)
