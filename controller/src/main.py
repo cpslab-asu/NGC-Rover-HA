@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from itertools import repeat
-from pathlib import Path
 from pprint import pprint
-from time import time_ns
-from logging import DEBUG, NullHandler, basicConfig, getLogger
 
 import apscheduler.schedulers.blocking as sched
 import click
@@ -72,18 +69,16 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
 @click.command()
 @click.option("-w", "--world", default="default")
 @click.option("-f", "--frequency", type=int, default=1)
-@click.option("-s", "--socket", "socket_path", type=click.Path(exists=True, dir_okay=False, writable=True, path_type=Path), default=None)
+@click.option("-p", "--port", type=int, default=5556)
 @click.option("-v", "--verbose", is_flag=True)
-def controller(world: str, frequency: int, socket_path: Path | None, verbose: bool):
-    logger = getLogger("publisher")
-    logger.addHandler(NullHandler())
-
+@click.option("-s", "--start", is_flag=True)
+def controller(world: str, frequency: int, port: int | None, verbose: bool, start: bool):
     if verbose:
         basicConfig(level=DEBUG)
 
-    if socket_path is None:
-        logger.debug("No socket provided, starting controller using defaults.")
 
+    if start:
+        logger.info("No port specified, starting controller using defaults.")
         msg = msgs.Start(commands=repeat(None), magnet=None)
         history = run(world, frequency, msg)
 
@@ -91,8 +86,8 @@ def controller(world: str, frequency: int, socket_path: Path | None, verbose: bo
     else:
         with zmq.Context() as ctx:
             with ctx.socket(zmq.REP) as sock:
-                with sock.connect(str(socket_path)):
-                    logger.debug("Listening for start message.")
+                with sock.bind(f"tcp://*:{port}"):
+                    logger.info(f"Listening for start message on port {port}")
                     msg = sock.recv_pyobj()
 
                     if not isinstance(msg, msgs.Start):
