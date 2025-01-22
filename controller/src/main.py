@@ -60,12 +60,13 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
 
         if controller.state.is_terminal():
             logger.debug("Found terminal state. Shutting down scheduler.")
-            scheduler.shutdown()
+            scheduler.remove_all_jobs()
+            scheduler.shutdown(wait=False)
         else:
             controller.step(next(cmds))
 
     logger.debug("Creating controller scheduler job")
-    scheduler.add_job(update, "interval", seconds=step_size)
+    scheduler.add_job(update, "interval", seconds=step_size, id="control_loop")
 
     logger.debug("Starting scheduler")
     scheduler.start()
