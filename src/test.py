@@ -1,124 +1,38 @@
 from __future__ import annotations
 
-import contextlib
-import itertools
 import logging
-import pathlib
-import tempfile
-import typing
 
 import click
-import docker
-import gzcm
-import gzcm.gazebo
 import staliro
 import staliro.optimizers
 import staliro.specifications.rtamt
-import zmq
 
-from controller import messages
-
-if typing.TYPE_CHECKING:
-    from collections.abc import Generator
-
-GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/gzcm/px4/gazebo:harmonic"
-GZ_WORLD: typing.Final[str] = "generated"
-
-
-@contextlib.contextmanager
-def temp_path() -> Generator[pathlib.Path, None, None]:
-    with tempfile.TemporaryDirectory() as tempdir:
-        try:
-            yield pathlib.Path(tempdir) / "transport.sock"
-        finally:
-            pass
-
-
-@contextlib.contextmanager
-def create_socket(path: pathlib.Path) -> Generator[zmq.Socket, None, None]:
-    with zmq.Context() as ctx:
-        with ctx.socket(zmq.REQ) as sock:
-            with sock.connect(str(path)):
-                try:
-                    yield sock
-                finally:
-                    pass
-
-
-@contextlib.contextmanager
-def rover_container(client: docker.DockerClient, world: str, sock_path: pathlib.Path):
-    sock_dir = sock_path.parent
-    container = client.containers.run(
-        image="ghcr.io/cpslab-asu/ngc-rover-ha/rover:latest",
-        command=f"publisher --world {world}",
-        detach=True,
-        volumes={
-            "/var/run/rover": {"path": str(sock_dir), "mode": "rw"},
-        },
-    )
-
-    while container.name is None:
-        container.reload()
-
-    try:
-        yield container
-    finally:
-        exit_code_str: str | None = container.attrs["Status"].get("ExitCode")
-        exit_code: int | None = int(exit_code_str) if exit_code_str else None
-
-        if container.status == "exited" and exit_code != 0:
-            raise RuntimeError("Automaton docker container exited abnormally. Please check container logs.")
-        elif container.status != "exited":
-            container.kill()
-            container.wait()
-
-        container.remove()
-
-
-def simulate() -> messages.Result:
-    logger = logging.getLogger("test.simulation")
-    logger.addHandler(logging.NullHandler())
-
-    client = docker.from_env()
-    gz = gzcm.Gazebo()
-
-    with temp_path() as sock_path:
-        with create_socket(sock_path) as sock:
-            logger.debug(f"Created UNIX socket at path: {sock_path}")
-
-            with rover_container(client, GZ_WORLD, sock_path) as rover:
-                logger.debug(f"Started rover controller container {rover.name}")
-
-                with gzcm.gazebo.gazebo(gz, rover, image=GZ_IMAGE, client=client, world=pathlib.Path(f"/tmp/{GZ_WORLD}.sdf")):
-                    logger.debug("Attached gazebo simulation to controller container.")
-
-                    sock.send_pyobj(messages.Start(commands=itertools.repeat(None), magnet=None))
-                    logger.debug("Sent start message, waiting for result...")
-                    
-                    msg = sock.recv_pyobj()
-
-                    if isinstance(msg, Exception):
-                        raise msg
-
-                    if not isinstance(msg, messages.Result):
-                        raise TypeError(f"Unexpected type received {type(msg)}")
-
-                    logger.debug("Simulation completed. Shutting down containers.")
-                    return msg
+import simulation
+from controller.attacks import FixedSpeed
 
 
 @click.group()
 @click.option("-v", "--verbose", is_flag=True)
-def test(verbose: bool):
+@click.pass_context
+def test(ctx: click.Context, verbose: bool):
     if verbose:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
+
+    ctx.ensure_object(dict)
+    ctx.obj["verbose"] = verbose
 
 
 @test.command()
-def cpv1():
+@click.pass_context
+def cpv1(ctx: click.Context):
     @staliro.models.model()
     def model(sample: staliro.Sample) -> staliro.Trace[dict[str, float]]:
-        sim_result = simulate()
+        result = simulation.run(
+            frequency=1,
+            magnet=None,
+            speed=FixedSpeed(sample.static["speed"]),
+            verbose=ctx.obj["verbose"]
+        )
         trace = {
             step.time: {
                 "x": step.position[0],
@@ -127,22 +41,24 @@ def cpv1():
                 "theta": step.heading,
                 "omega": step.roll,
             }
-            for step in sim_result.history
+            for step in result.history
         }
 
         return staliro.Trace(trace)
 
-
-    spec = staliro.specifications.rtamt.parse_dense("always (x > 0)")  # Use reference trajectory to assert error never exceeds given bound
+    spec = staliro.specifications.rtamt.parse_dense("always (x >= 0)")  # Use reference trajectory to assert error never exceeds given bound
     opt = staliro.optimizers.UniformRandom() # TODO: replace with SOAR
     opts = staliro.TestOptions(
         runs=1,
         iterations=100,
+        static_inputs={
+            "speed": (0, 100),
+        },
         signals={},
     )
-    test_result = staliro.test(model, spec, opt, opts)
-
-    # TODO: do something with the result
+    runs = staliro.test(model, spec, opt, opts)
+    run = runs[0]  # We know there is only a single run, so just extract it
+    eval = run.evaluations[0]  # Extract the first sample generated by the optimizer
 
 
 @test.command()
