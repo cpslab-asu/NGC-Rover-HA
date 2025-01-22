@@ -10,9 +10,11 @@ pyzmq = "*"
 docker = "*"
 gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
 controller = {file = "controller", editable=true}
+matplotlib = "*"
 
 [scripts]
 test = "python3 src/test.py"
+simulation = "python3 src/simulation.py"
 
 [dev-packages]
 types-docker = "*"
