@@ -8,7 +8,7 @@ click = "*"
 psy-taliro = ">=1.0"
 pyzmq = "*"
 docker = "*"
-gzcm = {git="git+ssh://git@github.com/cpslab-asu/gzcm", editable=true}
+gzcm = {git="git+https://github.com/cpslab-asu/gzcm", editable=true}
 controller = {file = "controller", editable=true}
 matplotlib = "*"
 

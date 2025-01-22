@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "f31eecc1dd72230fa3ea2add94f3a11950d87dc740893997e226fb6b4d92b25f"
+            "sha256": "da59d402d80f63b6e2c97808f9b8e50ec33b7b2a838f97b030ac5f1d10e56c1f"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -300,7 +300,7 @@
         },
         "gzcm": {
             "editable": true,
-            "git": "git+ssh://git@github.com/cpslab-asu/gzcm",
+            "git": "git+https://github.com/cpslab-asu/gzcm",
             "ref": "6d74823915d5d46099b4077aff00da44a3c27336"
         },
         "idna": {
