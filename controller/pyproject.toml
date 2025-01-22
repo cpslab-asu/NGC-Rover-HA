@@ -8,7 +8,10 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = [
+dependencies = []
+
+[dependency-groups]
+docker = [
     "apscheduler>=3.11.0",
     "click>=8.1.8",
     "pyzmq>=26.2.0",

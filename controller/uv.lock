@@ -107,14 +107,18 @@ wheels = [
 name = "controller"
 version = "0.1.0"
 source = { editable = "." }
-dependencies = [
+
+[package.dev-dependencies]
+docker = [
     { name = "apscheduler" },
     { name = "click" },
     { name = "pyzmq" },
 ]
 
 [package.metadata]
-requires-dist = [
+
+[package.metadata.requires-dev]
+docker = [
     { name = "apscheduler", specifier = ">=3.11.0" },
     { name = "click", specifier = ">=8.1.8" },
     { name = "pyzmq", specifier = ">=26.2.0" },

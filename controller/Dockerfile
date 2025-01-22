@@ -13,7 +13,7 @@ RUN uv venv \
     --python 3.10 \
     --python-preference only-system \
     --relocatable
-RUN uv sync --project /app --locked --no-install-project
+RUN uv sync --project /app --locked --group docker --no-install-project
 
 FROM ubuntu:22.04
 
