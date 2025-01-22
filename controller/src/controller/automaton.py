@@ -44,11 +44,10 @@ class Action(enum.IntEnum):
 @dc.dataclass(frozen=True, slots=True)
 class State(abc.ABC):
     """An abstract system state representing a behavior of the system."""
-    model: Model
     flags: Flags
     
     @abc.abstractmethod
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         """Advance the system to the next state."""
 
         ...
@@ -82,16 +81,15 @@ class S1(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         if self.time >= 5:
             self.LOGGER.info("Transitioning to S2")
             return S2(
-                model=self.model,
                 flags=dc.replace(self.flags, autodrive=True),
-                initial_position=self.model.position,
+                initial_position=model.position,
             )
 
-        return S1(self.model, self.flags, step_size=self.step_size, time=self.time + self.step_size)
+        return S1(self.flags, step_size=self.step_size, time=self.time + self.step_size)
 
 
 def euclidean_distance(p1: Position, p2: Position) -> float:
@@ -117,24 +115,23 @@ class S2(State):
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}, transitioning to S6")
-            return S6(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
+            return S6(flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
-        position = self.model.position
+        position = model.position
         distance = euclidean_distance(position, self.initial_position)
 
         if distance >= 7:
             self.LOGGER.info("Transitioning to S3")
             return S3(
-                model=self.model,
                 flags=dc.replace(self.flags, check_position=False, update_compass=True),
-                initial_heading=self.model.heading,
+                initial_heading=model.heading,
             )
         
         self.LOGGER.info(f"Remaining distance: {7 - distance}")
-        return S2(self.model, self.flags, self.initial_position)
+        return S2(self.flags, self.initial_position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -154,23 +151,20 @@ class S3(State):
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S8")
-            return S8(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
+            return S8(flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
-        heading = self.model.heading
+        heading = model.heading
         degrees = math.fabs(heading - self.initial_heading)
 
         if degrees >= 70:
             self.LOGGER.info("Transitioning to S4")
-            return S4(
-                flags=dc.replace(self.flags, update_compass=False, update_gps=True),
-                model=self.model,
-            )
+            return S4(flags=dc.replace(self.flags, update_compass=False, update_gps=True))
         
         self.LOGGER.info(f"Degrees to heading: {degrees}")
-        return S3(self.model, self.flags, self.initial_heading)
+        return S3(self.flags, self.initial_heading)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -188,12 +182,11 @@ class S4(State):
     def action(self) -> Action:
         return Action.TURN
     
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S5")
         return S5(
-            model=self.model,
             flags=dc.replace(self.flags, update_gps=False, move=True),
-            initial_position=self.model.position,
+            initial_position=model.position,
         )
 
 
@@ -214,20 +207,20 @@ class S5(State):
     def action(self) -> Action:
         return Action.DRIVE
     
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S7")
-            return S7(self.model, flags=dc.replace(self.flags, autodrive=False, check_position=False))
+            return S7(flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
-        position = self.model.position
+        position = model.position
         distance = euclidean_distance(self.initial_position, position)
 
         if distance >= 7:
             self.LOGGER.info("Distance achieved. Transitioning to S6")
-            return S6(flags=dc.replace(self.flags, autodrive=False, move=False), model=self.model)
+            return S6(flags=dc.replace(self.flags, autodrive=False, move=False))
 
         self.LOGGER.info(f"Distance remaining: {7 - distance}.")
-        return S5(self.model, self.flags, self.initial_position)
+        return S5(self.flags, self.initial_position)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -242,8 +235,8 @@ class S6(State):
     def is_terminal(self) -> bool:
         return True
 
-    def next(self, cmd: Command | None) -> State:
-         return S6(self.model, self.flags)
+    def next(self, model: Model, cmd: Command | None) -> State:
+         return S6(self.flags)
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -261,13 +254,13 @@ class S7(State):
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 55:
             self.LOGGER.info(f"Command receieved: {cmd}. Transitioning to S9")
-            return S9(self.model, self.flags)
+            return S9(self.flags)
         
         self.LOGGER.info("Transitioning to S6")
-        return S6(self.model, flags=dc.replace(self.flags, move=False))
+        return S6(flags=dc.replace(self.flags, move=False))
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -285,9 +278,9 @@ class S8(State):
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, cmd: Command | None) -> State:
+    def next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S7")
-        return S7(self.model, flags=dc.replace(self.flags, move=True, update_compass=False))
+        return S7(flags=dc.replace(self.flags, move=True, update_compass=False))
 
 
 @dc.dataclass(frozen=True, slots=True)
@@ -302,19 +295,19 @@ class S9(State):
     def is_terminal(self) -> bool:
         return True
 
-    def next(self, cmd: Command | None) -> State:
-        return S9(self.model, self.flags)
+    def next(self, model: Model, cmd: Command | None) -> State:
+        return S9(self.flags)
 
 
 class Automaton:
     def __init__(self, model: Model, step_size: float):
         self.model = model
-        self.state: State = S1(flags=Flags(), model=model, time=0.0, step_size=step_size)
+        self.state: State = S1(flags=Flags(), time=0.0, step_size=step_size)
         self.history: list[State] = []
 
     def step(self, cmd: Command | None):
         self.history.append(self.state)
-        self.state = self.state.next(cmd)
+        self.state = self.state.next(self.model, cmd)
 
     @property
     def action(self) -> Action:
