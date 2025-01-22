@@ -132,7 +132,7 @@ def start(frequency: int, *, verbose: bool = False) -> Generator[Simulation, Non
 
 
 def run(frequency: int, magnet: Magnet | None, speed: SpeedController | None, verbose: bool = False) -> Result:
-    with simulation(frequency, verbose=verbose) as sim:
+    with start(frequency, verbose=verbose) as sim:
         result = sim.run(magnet, speed)
 
     return result
