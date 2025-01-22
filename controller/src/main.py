@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from itertools import repeat
 from pprint import pprint
+from logging import DEBUG, INFO, WARNING, NullHandler, basicConfig, getLogger
 
 import apscheduler.schedulers.blocking as sched
 import click
@@ -36,7 +37,7 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
 
     def update():
         tsim = vehicle.clock - tstart
-        logger.debug("Running controller update.")
+        logger.debug("Running controller step.")
         history.append(
             msgs.Step(
                 time=tsim,
@@ -47,9 +48,15 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
             )
         )
 
-        speed = abs(speed_ctl.speed(tsim))
-        vehicle.velocity = speed * controller.velocity
-        vehicle.omega = speed * controller.omega
+        action = controller.action
+        speed = speed_ctl.speed(tsim)
+
+        if action is ha.Action.DRIVE:
+            vehicle.velocity = speed
+        elif action is ha.Action.TURN:
+            vehicle.omega = speed / 2
+        else:
+            vehicle.velocity = 0
 
         if controller.state.is_terminal():
             logger.debug("Found terminal state. Shutting down scheduler.")
@@ -75,7 +82,13 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
 def controller(world: str, frequency: int, port: int | None, verbose: bool, start: bool):
     if verbose:
         basicConfig(level=DEBUG)
+    else:
+        basicConfig(level=INFO)
+        getLogger("apscheduler").setLevel(WARNING)
 
+    logger = getLogger("publisher")
+    logger.addHandler(NullHandler())
+    logger.info("Rover hybrid automaton controller version 0.1.0")
 
     if start:
         logger.info("No port specified, starting controller using defaults.")
@@ -93,7 +106,7 @@ def controller(world: str, frequency: int, port: int | None, verbose: bool, star
                     if not isinstance(msg, msgs.Start):
                         sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
 
-                    logger.debug("Start message received. Running simulation.")
+                    logger.info("Start message received. Running simulation.")
                     history = run(world, frequency, msg)
                     sock.send_pyobj(msgs.Result(history))
 
