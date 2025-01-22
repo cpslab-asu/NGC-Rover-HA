@@ -50,6 +50,15 @@ def controller_socket(container: Container, port: int) -> Generator[zmq.Socket, 
                     pass
 
 
+class SimulationError(Exception):
+    pass
+
+
+class AbnormalExitError(SimulationError):
+    def __init__(self, exit_code: int):
+        super().__init__(f"Automaton docker container exited abnormally (exit code {exit_code}). Please check container logs.")
+
+
 @contextlib.contextmanager
 def controller_container(
     client: docker.DockerClient,
@@ -81,11 +90,15 @@ def controller_container(
 
     try:
         yield controller
+    except KeyboardInterrupt as e:
+        controller.kill()
+        raise e
     finally:
         result = controller.wait(timeout=1.0)
+        exit_code = result["StatusCode"]
 
-        if result["StatusCode"] != 0:
-            raise RuntimeError("Automaton docker container exited abnormally. Please check container logs.")
+        if exit_code != 0 and exit_code != 137:  # 137 is the exit code for a process killed by SIGKILL
+            raise AbnormalExitError(exit_code)
 
 
 @attrs.define()
