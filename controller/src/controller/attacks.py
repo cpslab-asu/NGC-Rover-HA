@@ -29,9 +29,8 @@ class EMFMagnet(Magnet):
         b_scalar = self.magnitude/(4.0*np.pi*np.power(distance,3.0)) 
         b_vector = unit_r*np.dot(np.array([0.0,0.0,1.0]),unit_r)*3.0 - np.array([0.0,0.0,1.0])
         b = b_scalar * b_vector
-        b = unit_r*np.linalg.norm(b)
         b += model.worldField # np.array([0.224902,0.0,0.428])
-        b = Rotation.from_euler(0.0,0.0,model.heading).inv().apply(b)
+        b = Rotation.from_euler(0.0,0.0,np.deg2rad(model.heading)).inv().apply(b)
         newHeading = -np.rad2deg(np.arctan2(b[1],b[0]))
         return (newHeading - model.heading)
 
