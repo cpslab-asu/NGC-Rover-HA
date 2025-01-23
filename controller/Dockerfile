@@ -47,4 +47,4 @@ EOF
 RUN chmod +x /usr/local/bin/controller
 
 
-CMD ["/app/.venv/bin/controller"]
+CMD ["/usr/local/bin/controller"]
