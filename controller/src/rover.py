@@ -4,12 +4,13 @@ from dataclasses import dataclass, field
 from logging import Logger, NullHandler, getLogger
 from math import pi
 from threading import Event, Lock
-from time import sleep
+from typing import Literal, NewType
 
 from gz.transport13 import Node, Publisher, SubscribeOptions
 from gz.math7 import Quaterniond
 from gz.msgs10.actuators_pb2 import Actuators
 from gz.msgs10.boolean_pb2 import Boolean
+from gz.msgs10.double_pb2 import Double
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.pose_v_pb2 import Pose_V
 
@@ -90,14 +91,15 @@ def _rover_logger() -> Logger:
     return logger
 
 
+InitializedNode = NewType("InitializedNode", Node)
+
+
 @dataclass()
 class Rover(automaton.Model):
-    _node: Node = field()
+    _node: InitializedNode = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
     _magnet: attacks.Magnet = field()
-    _velocity: float | None = field(default=None, init=False)
-    _omega: float | None = field(default=None, init=False)
     _logger: Logger = field(default_factory=_rover_logger, init=False)
 
     @property
@@ -115,6 +117,15 @@ class Rover(automaton.Model):
     @property
     def roll(self) -> float:
         return self._pose.roll
+
+    def wait(self):
+        self._pose.wait()
+
+
+@dataclass()
+class R1(Rover):
+    _velocity: float | None = field(default=None, init=False)
+    _omega: float | None = field(default=None, init=False)
 
     @property
     def omega(self) -> float:
@@ -148,8 +159,40 @@ class Rover(automaton.Model):
             self._omega = None
             self._logger.info(f"Setting velocity to {target}")
 
-    def wait(self):
-        self._pose.wait()
+
+@dataclass()
+class Ackermann(Rover):
+    _servos: Publisher = field()
+    _velocity: float = field(default=0.0, init=False)
+    _steering_angle: float  = field(default=0.0, init=False)
+
+    @property
+    def steering_angle(self) -> float:
+        return self._steering_angle
+
+    @steering_angle.setter
+    def steering_angle(self, target: float):
+        if target != self._steering_angle:
+            msg = Double()
+            msg.data = target
+
+            self._servos.publish(msg)
+            self._steering_angle = target
+            self._logger.info(f"Setting steering angle to {target}")
+
+    @property
+    def velocity(self) -> float:
+        return self._velocity
+
+    @velocity.setter
+    def velocity(self, target: float):
+        if target != self._velocity:
+            msg = Actuators()
+            msg.velocity.append(target)
+
+            self._motors.publish(msg)
+            self._velocity = target
+            self._logger.info(f"Setting velocity to {target}")
 
 
 class RoverError(Exception):
@@ -160,16 +203,19 @@ class TransportError(RoverError):
     pass
 
 
-def spawn(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> Rover:
-    logger = getLogger("rover")
-    logger.addHandler(NullHandler())
-
-    node = Node()
+def _create_model(
+    world: str,
+    model: Literal["r1_rover", "rover_ackermann"],
+    *,
+    name: str,
+    logger: Logger,
+) -> InitializedNode:
+    client = Node()
     msg = EntityFactory()
-    msg.sdf_filename = "r1_rover/model.sdf"
+    msg.sdf_filename = f"{model}/model.sdf"
     msg.name = name
     msg.allow_renaming = False
-    res, rep = node.request(f"/world/{world}/create", msg, EntityFactory, Boolean, timeout=5000)
+    res, rep = client.request(f"/world/{world}/create", msg, EntityFactory, Boolean, timeout=5000)
 
     logger.debug(f"Response: {res}")
     logger.debug(f"Reply: {rep}")
@@ -180,6 +226,16 @@ def spawn(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> Rove
     if not rep.data:
         raise RoverError("Could not create rover Gazebo model")
 
+    return InitializedNode(client)
+
+
+def _create_handler(
+    node: InitializedNode,
+    world: str,
+    *,
+    name:str,
+    logger: Logger,
+) -> PoseHandler:
     pose = PoseHandler(name)
     pose_options = SubscribeOptions()
     pose_options.msgs_per_sec = 10
@@ -187,13 +243,48 @@ def spawn(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> Rove
     if not node.subscribe(Pose_V, f"/world/{world}/pose/info", pose, pose_options):
         raise TransportError()
 
-    logger.info("Subscribed to pose topic.")
+    logger.info("Created pose topic handler.")
+
+    return pose
+
+
+def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
+    logger = getLogger("rover.r1")
+    logger.addHandler(NullHandler())
+
+    node = _create_model(world, name=name, model="r1_rover", logger=logger)
+    logger.info(f"Created rover model {name} in gazebo world {world}.")
+
+    pose = _create_handler(node, world, name=name, logger=logger)
     motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
 
     if not motors.valid():
         raise TransportError("Could not register publisher for motor control")
 
     logger.info("Initialized motor topic publisher.")
-    logger.info(f"Creating rover model {name} in gazebo world {world}...")
 
-    return Rover(node, motors, pose, magnet)
+    return R1(node, motors, pose, magnet)
+
+
+def ackermann(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> Ackermann:
+    logger = getLogger("rover.ackermann")
+    logger.addHandler(NullHandler())
+
+    node = _create_model(world, name=name, model="rover_ackermann", logger=logger)
+    logger.info(f"Created rover model {name} in gazebo world {world}.")
+
+    pose = _create_handler(node, world, name=name, logger=logger)
+    motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
+
+    if not motors.valid():
+        raise TransportError("Could not register publisher for motor control")
+
+    logger.info("Initialized motor topic publisher.")
+    servos = node.advertise(f"/model/{name}/servo_0", Double)
+
+    if not servos.valid():
+        raise TransportError("Could not register publisher for servo_0 control")
+
+    logger.info("Initialized servo topic publisher.")
+
+    return Ackermann(node, motors, pose, magnet, servos)
