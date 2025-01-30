@@ -172,6 +172,9 @@ class Ackermann(Rover):
 
     @steering_angle.setter
     def steering_angle(self, target: float):
+        if not -0.5 <= target <= 0.5:
+            raise ValueError("Steering angle must be within interval [-0.5, 0.5]")
+
         if target != self._steering_angle:
             msg = Double()
             msg.data = target
