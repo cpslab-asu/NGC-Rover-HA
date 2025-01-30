@@ -27,9 +27,9 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
 
-    speed_ctl = msg.speed or atk.FixedSpeed(1.0)
+    speed_ctl = msg.speed or atk.FixedSpeed(5.0)
     magnet = msg.magnet or atk.StationaryMagnet(0.0)
-    vehicle = rover.spawn(world, magnet=magnet)
+    vehicle = rover.ackermann(world, magnet=magnet)
     controller = ha.Automaton(vehicle, step_size)
 
     vehicle.wait()
@@ -51,12 +51,15 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
         action = controller.action
         speed = speed_ctl.speed(tsim)
 
-        if action is ha.Action.DRIVE:
-            vehicle.velocity = speed
-        elif action is ha.Action.TURN:
-            vehicle.omega = speed / 2
+        if action is ha.Action.STOP:
+            vehicle.velocity = 0.0
         else:
-            vehicle.velocity = 0
+            vehicle.velocity = speed
+
+        if action is ha.Action.TURN:
+            vehicle.steering_angle = 0.5
+        else:
+            vehicle.steering_angle = 0.0
 
         if controller.state.is_terminal():
             logger.debug("Found terminal state. Shutting down scheduler.")
