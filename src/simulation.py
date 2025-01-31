@@ -21,7 +21,7 @@ if typing.TYPE_CHECKING:
     from docker.models.containers import Container
 
 GZ_PORT: typing.Final[int] = 7722
-GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/gzcm/px4/gazebo:harmonic"
+GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/ngc-rover-ha/gazebo:harmonic"
 GZ_BASE: typing.Final[pathlib.Path] = pathlib.Path("resources/worlds/default.sdf")
 GZ_WORLD: typing.Final[pathlib.Path] = pathlib.Path("/tmp/generated.sdf")
 
