@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from logging import Logger, NullHandler, getLogger
-from math import pi
+from math import atan, pi
 from threading import Event, Lock
 from typing import Literal, NewType
 
@@ -12,6 +12,7 @@ from gz.msgs10.actuators_pb2 import Actuators
 from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.double_pb2 import Double
 from gz.msgs10.entity_factory_pb2 import EntityFactory
+from gz.msgs10.magnetometer_pb2 import Magnetometer
 from gz.msgs10.pose_v_pb2 import Pose_V
 
 from controller import attacks, automaton
@@ -22,6 +23,44 @@ def _pose_logger() -> Logger:
     logger.addHandler(NullHandler())
 
     return logger
+
+
+@dataclass()
+class MagnetometerHandler:
+    _vector: tuple[float, float, float] = field(default=(0.0, 0.0, 0.0), init=False)
+    _lock: Lock = field(default_factory=Lock, init=False)
+    _ready: Event = field(default_factory=Event, init=False)
+
+    def __call__(self, msg: Magnetometer):
+        with self._lock:
+            field = msg.field_tesla
+            self._vector = (field.x, field.y, field.z)
+
+        if not self._ready.is_set():
+            self._ready.set()
+
+    @property
+    def vector(self) -> tuple[float, float, float]:
+        with self._lock:
+            return self._vector
+
+    @property
+    def x(self) -> float:
+        with self._lock:
+            return self._vector[0]
+
+    @property
+    def y(self) -> float:
+        with self._lock:
+            return self._vector[1]
+
+    @property
+    def z(self) -> float:
+        with self._lock:
+            return self._vector[2]
+
+    def wait(self) -> bool:
+        return self._ready.wait()
 
 
 @dataclass()
@@ -161,10 +200,24 @@ class R1(Rover):
 
 
 @dataclass()
-class Ackermann(Rover):
+class NGC(Rover):
+    _magnetometer: MagnetometerHandler = field()
     _servos: Publisher = field()
     _velocity: float = field(default=0.0, init=False)
     _steering_angle: float  = field(default=0.0, init=False)
+
+    @property
+    def heading(self) -> float:
+        x, y, _ = self._magnetometer.vector
+
+        if y > 0:
+            return 90 - (atan(x/y) * 180/pi)
+        elif y < 0:
+            return 270 - (atan(x/y) * 180/pi)
+        elif x > 0:
+            return 180.0
+        else:
+            return 0.0
 
     @property
     def steering_angle(self) -> float:
@@ -197,6 +250,10 @@ class Ackermann(Rover):
             self._velocity = target
             self._logger.info(f"Setting velocity to {target}")
 
+    def wait(self):
+        self._pose.wait()
+        self._magnetometer.wait()
+
 
 class RoverError(Exception):
     pass
@@ -208,7 +265,7 @@ class TransportError(RoverError):
 
 def _create_model(
     world: str,
-    model: Literal["r1_rover", "rover_ackermann"],
+    model: Literal["r1_rover", "ngc_rover"],
     *,
     name: str,
     logger: Logger,
@@ -232,12 +289,11 @@ def _create_model(
     return InitializedNode(client)
 
 
-def _create_handler(
+def _pose_handler(
     node: InitializedNode,
     world: str,
     *,
     name:str,
-    logger: Logger,
 ) -> PoseHandler:
     pose = PoseHandler(name)
     pose_options = SubscribeOptions()
@@ -246,9 +302,23 @@ def _create_handler(
     if not node.subscribe(Pose_V, f"/world/{world}/pose/info", pose, pose_options):
         raise TransportError()
 
-    logger.info("Created pose topic handler.")
-
     return pose
+
+def _magnetometer_handler(
+    node: InitializedNode,
+    world: str,
+    *,
+    name:str,
+) -> MagnetometerHandler:
+    topic = f"/world/{world}/model/{name}/link/base_link/sensor/magnetometer_sensor/magnetometer"
+    magnetometer = MagnetometerHandler()
+    magnetometer_options = SubscribeOptions()
+    magnetometer_options.msgs_per_sec = 10
+
+    if not node.subscribe(Magnetometer, topic, magnetometer, magnetometer_options):
+        raise TransportError()
+
+    return magnetometer
 
 
 def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
@@ -258,7 +328,9 @@ def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
     node = _create_model(world, name=name, model="r1_rover", logger=logger)
     logger.info(f"Created rover model {name} in gazebo world {world}.")
 
-    pose = _create_handler(node, world, name=name, logger=logger)
+    pose = _pose_handler(node, world, name=name)
+    logger.info("Initialized pose topic handler.")
+
     motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
 
     if not motors.valid():
@@ -269,14 +341,19 @@ def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
     return R1(node, motors, pose, magnet)
 
 
-def ackermann(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> Ackermann:
+def ngc(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> NGC:
     logger = getLogger("rover.ackermann")
     logger.addHandler(NullHandler())
 
-    node = _create_model(world, name=name, model="rover_ackermann", logger=logger)
+    node = _create_model(world, name=name, model="ngc_rover", logger=logger)
     logger.info(f"Created rover model {name} in gazebo world {world}.")
 
-    pose = _create_handler(node, world, name=name, logger=logger)
+    pose = _pose_handler(node, world, name=name)
+    logger.info("Initialized pose topic handler")
+
+    magnetometer = _magnetometer_handler(node, world, name=name)
+    logger.info("Initialized magnetometer topic handler")
+
     motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
 
     if not motors.valid():
@@ -290,4 +367,4 @@ def ackermann(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") ->
 
     logger.info("Initialized servo topic publisher.")
 
-    return Ackermann(node, motors, pose, magnet, servos)
+    return NGC(node, motors, pose, magnet, magnetometer, servos)
