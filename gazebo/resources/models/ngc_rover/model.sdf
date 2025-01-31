@@ -1,5 +1,5 @@
 <sdf version="1.8">
-	<model name="rover_ackermann">
+	<model name="ngc_rover">
 	  <pose>0 0 .04 0 0 0</pose>
 	  <self_collide>false</self_collide>
 	  <static>false</static>
@@ -16,15 +16,15 @@
 		<izz>0.0252</izz>
 	      </inertia>
 	    </inertial>
-	    <visual name="rover_ackermann/BaseVisual">
+	    <visual name="ngc_rover/BaseVisual">
 	      <pose>0 0 -.0115 -0.018 0 -1.5707</pose>
 	      <geometry>
 		<mesh>
-		  <uri>model://rover_ackermann/meshes/MainBody.dae</uri>
+		  <uri>model://ngc_rover/meshes/MainBody.dae</uri>
 		</mesh>
 	      </geometry>
 	    </visual>
-	    <collision name="rover_ackermann/BaseCollision">
+	    <collision name="ngc_rover/BaseCollision">
 	      <pose>-0.03 0 .03 0 0 0</pose>
 	      <geometry>
 		<box>
@@ -32,6 +32,12 @@
 		</box>
 	      </geometry>
 	    </collision>
+        <sensor name="magnetometer_sensor" type="magnetometer">
+            <always_on>1</always_on>
+            <update_rate>250</update_rate>
+            <visualize>true</visualize>
+            <topic>magnetometer</topic>
+        </sensor>
 	    <sensor name="imu_sensor" type="imu">
 		<always_on>1</always_on>
 		<update_rate>250</update_rate>
@@ -107,8 +113,8 @@
 		<update_rate>30</update_rate>
 	</sensor>
 	  </link>
-	  <link name="rover_ackermann/FrontRightWheel">
-	    <pose relative_to="rover_ackermann/FrontRightWheelJoint">0 0 0 0 0 0</pose>
+	  <link name="ngc_rover/FrontRightWheel">
+	    <pose relative_to="ngc_rover/FrontRightWheelJoint">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>.05</mass>
 	      <inertia>
@@ -122,16 +128,16 @@
 	    </inertial>
 	    <gravity>true</gravity>
 	    <velocity_decay/>
-	    <visual name="rover_ackermann/FrontRightWheelVisual">
-	      <pose relative_to="rover_ackermann/FrontRightWheelJoint">0 -0.02 0 0 0 3.14159</pose>
+	    <visual name="ngc_rover/FrontRightWheelVisual">
+	      <pose relative_to="ngc_rover/FrontRightWheelJoint">0 -0.02 0 0 0 3.14159</pose>
 	      <geometry>
 		<mesh>
-		  <uri>model://rover_ackermann/meshes/Wheel.dae</uri>
+		  <uri>model://ngc_rover/meshes/Wheel.dae</uri>
 		</mesh>
 	      </geometry>
 	    </visual>
-	    <collision name="rover_ackermann/FrontRightWheelCollision">
-	      <pose relative_to="rover_ackermann/FrontRightWheelJoint">0 0 0 -1.5707 0 0</pose>
+	    <collision name="ngc_rover/FrontRightWheelCollision">
+	      <pose relative_to="ngc_rover/FrontRightWheelJoint">0 0 0 -1.5707 0 0</pose>
 	      <geometry>
 		<cylinder>
 		  <length>0.03</length>
@@ -149,7 +155,7 @@
 	      </surface>
 	    </collision>
 	  </link>
-	  <link name="rover_ackermann/FrontRightWheelSteering">
+	  <link name="ngc_rover/FrontRightWheelSteering">
 	    <pose relative_to="servo_1">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>0.005</mass>
@@ -160,8 +166,8 @@
 	      </inertia>
 	    </inertial>
 	  </link>
-	  <link name="rover_ackermann/FrontLeftWheel">
-	    <pose relative_to="rover_ackermann/FrontLeftWheelJoint">0 0 0 0 0 0</pose>
+	  <link name="ngc_rover/FrontLeftWheel">
+	    <pose relative_to="ngc_rover/FrontLeftWheelJoint">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>.05</mass>
 	      <inertia>
@@ -175,16 +181,16 @@
 	    </inertial>
 	    <gravity>true</gravity>
 	    <velocity_decay/>
-	    <visual name="rover_ackermann/FrontLeftWheelVisual">
-	      <pose relative_to="rover_ackermann/FrontLeftWheelJoint">0 -0.02 0 0 0 3.14159</pose>
+	    <visual name="ngc_rover/FrontLeftWheelVisual">
+	      <pose relative_to="ngc_rover/FrontLeftWheelJoint">0 -0.02 0 0 0 3.14159</pose>
 	      <geometry>
 		<mesh>
-		  <uri>model://rover_ackermann/meshes/Wheel.dae</uri>
+		  <uri>model://ngc_rover/meshes/Wheel.dae</uri>
 		</mesh>
 	      </geometry>
 	    </visual>
-	    <collision name="rover_ackermann/FrontLeftWheelCollision">
-	      <pose relative_to="rover_ackermann/FrontLeftWheelJoint">0 0 0 -1.5707 0 0</pose>
+	    <collision name="ngc_rover/FrontLeftWheelCollision">
+	      <pose relative_to="ngc_rover/FrontLeftWheelJoint">0 0 0 -1.5707 0 0</pose>
 	      <geometry>
 		<cylinder>
 		  <length>0.03</length>
@@ -202,7 +208,7 @@
 	      </surface>
 	    </collision>
 	  </link>
-	  <link name="rover_ackermann/FrontLeftWheelSteering">
+	  <link name="ngc_rover/FrontLeftWheelSteering">
 	    <pose relative_to="servo_0 ">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>0.005</mass>
@@ -213,8 +219,8 @@
 	      </inertia>
 	    </inertial>
 	  </link>
-	  <link name="rover_ackermann/RearRightWheel">
-	    <pose relative_to="rover_ackermann/RearRightWheelJoint">0 0 0 0 0 0</pose>
+	  <link name="ngc_rover/RearRightWheel">
+	    <pose relative_to="ngc_rover/RearRightWheelJoint">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>.05</mass>
 	      <inertia>
@@ -228,16 +234,16 @@
 	    </inertial>
 	    <gravity>true</gravity>
 	    <velocity_decay/>
-	    <visual name="rover_ackermann/RearRightWheelVisual">
-	      <pose relative_to="rover_ackermann/RearRightWheelJoint">0 -0.02 0 0 0 3.14159</pose>
+	    <visual name="ngc_rover/RearRightWheelVisual">
+	      <pose relative_to="ngc_rover/RearRightWheelJoint">0 -0.02 0 0 0 3.14159</pose>
 	      <geometry>
 		<mesh>
-		  <uri>model://rover_ackermann/meshes/Wheel.dae</uri>
+		  <uri>model://ngc_rover/meshes/Wheel.dae</uri>
 		</mesh>
 	      </geometry>
 	    </visual>
-	    <collision name="rover_ackermann/RearRightWheelCollision">
-	      <pose relative_to="rover_ackermann/RearRightWheelJoint">0 0 0 -1.5707 0 0</pose>
+	    <collision name="ngc_rover/RearRightWheelCollision">
+	      <pose relative_to="ngc_rover/RearRightWheelJoint">0 0 0 -1.5707 0 0</pose>
 	      <geometry>
 		<cylinder>
 		  <length>0.03</length>
@@ -255,8 +261,8 @@
 	      </surface>
 	    </collision>
 	  </link>
-	  <link name="rover_ackermann/RearLeftWheel">
-	    <pose relative_to="rover_ackermann/RearLeftWheelJoint">0 0 0 0 0 0</pose>
+	  <link name="ngc_rover/RearLeftWheel">
+	    <pose relative_to="ngc_rover/RearLeftWheelJoint">0 0 0 0 0 0</pose>
 	    <inertial>
 	      <mass>.05</mass>
 	      <inertia>
@@ -270,16 +276,16 @@
 	    </inertial>
 	    <gravity>true</gravity>
 	    <velocity_decay/>
-	    <visual name="rover_ackermann/RearLeftWheelVisual">
-	      <pose relative_to="rover_ackermann/RearLeftWheelJoint">0 -0.02 0 0 0 3.14159</pose>
+	    <visual name="ngc_rover/RearLeftWheelVisual">
+	      <pose relative_to="ngc_rover/RearLeftWheelJoint">0 -0.02 0 0 0 3.14159</pose>
 	      <geometry>
 		<mesh>
-		  <uri>model://rover_ackermann/meshes/Wheel.dae</uri>
+		  <uri>model://ngc_rover/meshes/Wheel.dae</uri>
 		</mesh>
 	      </geometry>
 	    </visual>
-	    <collision name="rover_ackermann/RearLeftWheelCollision">
-	       <pose relative_to="rover_ackermann/RearLeftWheelJoint">0 0 0 -1.5707 0 0</pose>
+	    <collision name="ngc_rover/RearLeftWheelCollision">
+	       <pose relative_to="ngc_rover/RearLeftWheelJoint">0 0 0 -1.5707 0 0</pose>
 	      <geometry>
 		<cylinder>
 		  <length>0.03</length>
@@ -299,7 +305,7 @@
 	  </link>
 	  <joint name="servo_1" type="revolute">
 	    <parent>base_link</parent>
-	    <child>rover_ackermann/FrontRightWheelSteering</child>
+	    <child>ngc_rover/FrontRightWheelSteering</child>
 	    <pose relative_to="base_link">.120 -.1 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 0 1</xyz>
@@ -314,7 +320,7 @@
 	  </joint>
 	  <joint name="servo_0 " type="revolute">
 	    <parent>base_link</parent>
-	    <child>rover_ackermann/FrontLeftWheelSteering</child>
+	    <child>ngc_rover/FrontLeftWheelSteering</child>
 	    <pose relative_to="base_link">.120 .1 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 0 1</xyz>
@@ -327,9 +333,9 @@
 	      <use_parent_model_frame>1</use_parent_model_frame>
 	    </axis>
 	  </joint>
-	  <joint name="rover_ackermann/FrontRightWheelJoint" type="revolute">
-	    <parent>rover_ackermann/FrontRightWheelSteering</parent>
-	    <child>rover_ackermann/FrontRightWheel</child>
+	  <joint name="ngc_rover/FrontRightWheelJoint" type="revolute">
+	    <parent>ngc_rover/FrontRightWheelSteering</parent>
+	    <child>ngc_rover/FrontRightWheel</child>
 	    <pose relative_to="servo_1">0 0 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 1 0</xyz>
@@ -345,9 +351,9 @@
 	      <use_parent_model_frame>1</use_parent_model_frame>
 	    </axis>
 	  </joint>
-	  <joint name="rover_ackermann/FrontLeftWheelJoint" type="revolute">
-	    <parent>rover_ackermann/FrontLeftWheelSteering</parent>
-	    <child>rover_ackermann/FrontLeftWheel</child>
+	  <joint name="ngc_rover/FrontLeftWheelJoint" type="revolute">
+	    <parent>ngc_rover/FrontLeftWheelSteering</parent>
+	    <child>ngc_rover/FrontLeftWheel</child>
 	    <pose relative_to="servo_0 ">0 0 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 1 0</xyz>
@@ -363,9 +369,9 @@
 	      <use_parent_model_frame>1</use_parent_model_frame>
 	    </axis>
 	  </joint>
-	  <joint name="rover_ackermann/RearRightWheelJoint" type="revolute">
+	  <joint name="ngc_rover/RearRightWheelJoint" type="revolute">
 	    <parent>base_link</parent>
-	    <child>rover_ackermann/RearRightWheel</child>
+	    <child>ngc_rover/RearRightWheel</child>
 	    <pose relative_to="base_link">-0.192 -.1 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 1 0</xyz>
@@ -381,9 +387,9 @@
 	      <use_parent_model_frame>1</use_parent_model_frame>
 	    </axis>
 	  </joint>
-	  <joint name="rover_ackermann/RearLeftWheelJoint" type="revolute">
+	  <joint name="ngc_rover/RearLeftWheelJoint" type="revolute">
 	    <parent>base_link</parent>
-	    <child>rover_ackermann/RearLeftWheel</child>
+	    <child>ngc_rover/RearLeftWheel</child>
 	    <pose relative_to="base_link">-0.192 .1 0 0 0 0</pose>
 	    <axis>
 	      <xyz>0 1 0</xyz>
@@ -400,28 +406,28 @@
 	    </axis>
 	  </joint>
 	  <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
-		<joint_name>rover_ackermann/FrontLeftWheelJoint</joint_name>
+		<joint_name>ngc_rover/FrontLeftWheelJoint</joint_name>
 	        <sub_topic>command/motor_speed</sub_topic>
 	        <use_actuator_msg>true</use_actuator_msg>
 	        <actuator_number>0</actuator_number>
 		<p_gain>10.0</p_gain>
 	  </plugin>
 	  <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
-	        <joint_name>rover_ackermann/FrontRightWheelJoint</joint_name>
+	        <joint_name>ngc_rover/FrontRightWheelJoint</joint_name>
 	        <sub_topic>command/motor_speed</sub_topic>
 		<use_actuator_msg>true</use_actuator_msg>
 	        <actuator_number>0</actuator_number>
 	        <p_gain>10.0</p_gain>
 	  </plugin>
 	  <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
-		<joint_name>rover_ackermann/RearRightWheelJoint</joint_name>
+		<joint_name>ngc_rover/RearRightWheelJoint</joint_name>
 		<sub_topic>command/motor_speed</sub_topic>
 		<use_actuator_msg>true</use_actuator_msg>
 		<actuator_number>0</actuator_number>
 		<p_gain>10.0</p_gain>
 	  </plugin>
 	  <plugin filename="gz-sim-joint-controller-system" name="gz::sim::systems::JointController">
-		<joint_name>rover_ackermann/RearLeftWheelJoint</joint_name>
+		<joint_name>ngc_rover/RearLeftWheelJoint</joint_name>
 		<sub_topic>command/motor_speed</sub_topic>
 		<use_actuator_msg>true</use_actuator_msg>
 		<actuator_number>0</actuator_number>
@@ -430,10 +436,10 @@
 		<plugin
 		filename="gz-sim-joint-state-publisher-system"
 		name="gz::sim::systems::JointStatePublisher">
-			<joint_name>rover_ackermann/FrontLeftWheelJoint</joint_name>
-			<joint_name>rover_ackermann/FrontRightWheelJoint</joint_name>
-			<joint_name>rover_ackermann/RearLeftWheelJoint</joint_name>
-			<joint_name>rover_ackermann/RearLeftWheelJoint</joint_name>
+			<joint_name>ngc_rover/FrontLeftWheelJoint</joint_name>
+			<joint_name>ngc_rover/FrontRightWheelJoint</joint_name>
+			<joint_name>ngc_rover/RearLeftWheelJoint</joint_name>
+			<joint_name>ngc_rover/RearLeftWheelJoint</joint_name>
 			<joint_name>servo_0</joint_name>
 			<joint_name>servo_1</joint_name>
 	</plugin>
