@@ -1,4 +1,4 @@
-PLATFORMS = linux/amd64,linux/arm64 
+PLATFORMS ?= linux/amd64,linux/arm64
 GZ_VERSION = harmonic
 
 all: image
