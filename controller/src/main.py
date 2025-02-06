@@ -19,18 +19,23 @@ class PublisherError(Exception):
 
 
 def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
-    logger = getLogger("publisher")
+    logger = getLogger("controller")
     logger.addHandler(NullHandler())
 
     step_size: float = 1.0/frequency
-    cmds = iter(msg.commands)
-    scheduler = sched.BlockingScheduler()
-    history: list[msgs.Step] = []
+    logger.info(f"Step size: {step_size}")
+
+    magnet = msg.magnet or atk.StationaryMagnet(0.0)
+    logger.info(f"Magnet: {magnet}")
 
     speed_ctl = msg.speed or atk.FixedSpeed(5.0)
-    magnet = msg.magnet or atk.StationaryMagnet(0.0)
-    vehicle = rover.ackermann(world, magnet=magnet)
+    logger.info(f"Speed: {speed_ctl}")
+
+    vehicle = rover.ngc(world, magnet=magnet)
     controller = ha.Automaton(vehicle, step_size)
+    scheduler = sched.BlockingScheduler()
+    history: list[msgs.Step] = []
+    cmds = iter(msg.commands)
 
     vehicle.wait()
     tstart = vehicle.clock
@@ -62,7 +67,7 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
             vehicle.steering_angle = 0.0
 
         if controller.state.is_terminal():
-            logger.debug("Found terminal state. Shutting down scheduler.")
+            logger.info("Found terminal state. Shutting down scheduler.")
             scheduler.remove_all_jobs()
             scheduler.shutdown(wait=False)
         else:
