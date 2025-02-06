@@ -14,7 +14,7 @@ matplotlib = "*"
 
 [scripts]
 test = "python3 src/test.py"
-simulation = "python3 src/simulation.py"
+simulation = "python3 src/test.py simulation"
 
 [dev-packages]
 types-docker = "*"
