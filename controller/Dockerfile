@@ -36,7 +36,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
 
 COPY --from=build /app /app
 COPY ./src /app/src
-ADD --keep-git-dir=false https://github.com/px4/px4-gazebo-models.git /app/resources
 
 COPY <<EOF /usr/local/bin/controller
 #!/usr/bin/bash
