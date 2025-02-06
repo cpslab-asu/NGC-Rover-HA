@@ -8,9 +8,13 @@ click = "*"
 psy-taliro = ">=1.0"
 pyzmq = "*"
 docker = "*"
-gzcm = {git="git+https://github.com/cpslab-asu/gzcm", editable=true}
 controller = {file = "controller", editable=true}
 matplotlib = "*"
+
+[packages.gzcm]
+editable=true
+git = "git+https://github.com/cpslab-asu/gzcm"
+ref = "7dcbea329a9dc7dd07a4f5602add8ca13a628b00"
 
 [scripts]
 test = "python3 src/test.py"
