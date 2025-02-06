@@ -83,12 +83,13 @@ class S1(State):
 
     def next(self, model: Model, cmd: Command | None) -> State:
         if self.time >= 5:
-            self.LOGGER.info("Transitioning to S2")
+            self.LOGGER.info("Wait time exceeded. Transitioning to S2.")
             return S2(
                 flags=dc.replace(self.flags, autodrive=True),
                 initial_position=model.position,
             )
 
+        self.LOGGER.info(f"Current time: {self.time}, Time remaining: {5 - self.time}")
         return S1(self.flags, step_size=self.step_size, time=self.time + self.step_size)
 
 
@@ -124,13 +125,14 @@ class S2(State):
         distance = euclidean_distance(position, self.initial_position)
 
         if distance >= 7:
-            self.LOGGER.info("Transitioning to S3")
+            self.LOGGER.info("Distance threshold exceeded. Transitioning to S3.")
             return S3(
                 flags=dc.replace(self.flags, check_position=False, update_compass=True),
                 initial_heading=model.heading,
             )
         
-        self.LOGGER.info(f"Remaining distance: {7 - distance}")
+        self.LOGGER.info(f"Rover position: <{position[0]:.4f}, {position[1]:.4f}, {position[2]:.4f}>.")
+        self.LOGGER.info(f"Remaining distance: {7 - distance:.4f}")
         return S2(self.flags, self.initial_position)
 
 
@@ -157,13 +159,19 @@ class S3(State):
             return S8(flags=dc.replace(self.flags, autodrive=False, check_position=False))
 
         heading = model.heading
-        degrees = math.fabs(heading - self.initial_heading)
+
+        if heading > self.initial_heading:
+            degrees = self.initial_heading + (360 - heading)
+        else:
+            degrees = self.initial_heading - heading
+
+        self.LOGGER.info(f"Current heading: {heading: 0.4f}. Ground truth heading: {model.heading_real:.4f}")
 
         if degrees >= 70:
             self.LOGGER.info("Transitioning to S4")
             return S4(flags=dc.replace(self.flags, update_compass=False, update_gps=True))
         
-        self.LOGGER.info(f"Degrees to heading: {degrees}")
+        self.LOGGER.info(f"Degrees to target heading: {70 - degrees}")
         return S3(self.flags, self.initial_heading)
 
 
@@ -216,10 +224,11 @@ class S5(State):
         distance = euclidean_distance(self.initial_position, position)
 
         if distance >= 7:
-            self.LOGGER.info("Distance achieved. Transitioning to S6")
+            self.LOGGER.info("Distance threshold exceeded. Transitioning to S6.")
             return S6(flags=dc.replace(self.flags, autodrive=False, move=False))
 
-        self.LOGGER.info(f"Distance remaining: {7 - distance}.")
+        self.LOGGER.info(f"Rover position: <{position[0]:.4f}, {position[1]:.4f}, {position[2]:.4f}>.")
+        self.LOGGER.info(f"Remaining distance: {7 - distance:.4f}")
         return S5(self.flags, self.initial_position)
 
 
