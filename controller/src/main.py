@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from itertools import repeat
 from pprint import pprint
-from logging import DEBUG, INFO, WARNING, NullHandler, basicConfig, getLogger
+from logging import DEBUG, INFO, WARNING, Logger, NullHandler, basicConfig, getLogger
 
 import apscheduler.schedulers.blocking as sched
 import click
+import numpy.random as rand
 import zmq
 
 import rover
@@ -18,24 +20,30 @@ class PublisherError(Exception):
     pass
 
 
-def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
+def run(
+    world: str,
+    frequency: int,
+    magnet: atk.Magnet | None,
+    speed: atk.SpeedController | None,
+    commands: Iterable[ha.Command | None],
+) -> list[msgs.Step]:
     logger = getLogger("controller")
     logger.addHandler(NullHandler())
 
     step_size: float = 1.0/frequency
     logger.info(f"Step size: {step_size}")
 
-    magnet = msg.magnet or atk.StationaryMagnet(0.0)
+    magnet = magnet or atk.StationaryMagnet(0.0)
     logger.info(f"Magnet: {magnet}")
 
-    speed_ctl = msg.speed or atk.FixedSpeed(5.0)
+    speed_ctl = speed or atk.FixedSpeed(5.0)
     logger.info(f"Speed: {speed_ctl}")
 
     vehicle = rover.ngc(world, magnet=magnet)
     controller = ha.Automaton(vehicle, step_size)
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
-    cmds = iter(msg.commands)
+    cmds = iter(commands)
 
     vehicle.wait()
     tstart = vehicle.clock
@@ -82,13 +90,10 @@ def run(world: str, frequency: int, msg: msgs.Start) -> list[msgs.Step]:
     return history
 
 
-@click.command()
-@click.option("-w", "--world", default="default")
-@click.option("-f", "--frequency", type=int, default=1)
-@click.option("-p", "--port", type=int, default=5556)
+@click.group()
+@click.pass_context
 @click.option("-v", "--verbose", is_flag=True)
-@click.option("-s", "--start", is_flag=True)
-def controller(world: str, frequency: int, port: int | None, verbose: bool, start: bool):
+def controller(ctx: click.Context, verbose: bool):
     if verbose:
         basicConfig(level=DEBUG)
     else:
@@ -99,25 +104,50 @@ def controller(world: str, frequency: int, port: int | None, verbose: bool, star
     logger.addHandler(NullHandler())
     logger.info("Rover hybrid automaton controller version 0.1.0")
 
-    if start:
-        logger.info("No port specified, starting controller using defaults.")
-        msg = msgs.Start(commands=repeat(None), magnet=None)
-        history = run(world, frequency, msg)
+    ctx.ensure_object(dict)
+    ctx.obj["logger"] = logger
 
-        pprint(history)
-    else:
-        with zmq.Context() as ctx:
-            with ctx.socket(zmq.REP) as sock:
-                with sock.bind(f"tcp://*:{port}"):
-                    logger.info(f"Listening for start message on port {port}")
-                    msg = sock.recv_pyobj()
 
-                    if not isinstance(msg, msgs.Start):
-                        sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
+@controller.command()
+@click.pass_context
+@click.option("-p", "--port", type=int, default=5556)
+def serve(ctx: click.Context, port: int):
+    logger: Logger = ctx.obj["logger"]
 
+    with zmq.Context() as zmq_ctx:
+        with zmq_ctx.socket(zmq.REP) as sock:
+            with sock.bind(f"tcp://*:{port}"):
+                logger.info(f"Listening for start message on port {port}")
+                msg = sock.recv_pyobj()
+
+                if not isinstance(msg, msgs.Start):
+                    sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
+                else:
                     logger.info("Start message received. Running simulation.")
-                    history = run(world, frequency, msg)
+                    history = run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands)
                     sock.send_pyobj(msgs.Result(history))
+
+
+@controller.command()
+@click.pass_context
+@click.option("-w", "--world", default="default")
+@click.option("-f", "--frequency", type=int, default=1)
+@click.option("-s", "--speed", type=float, default=5.0)
+@click.option("-m", "--magnet", nargs=2, type=float, default=None)
+def start(
+    ctx: click.Context,
+    world: str,
+    frequency: int,
+    speed: float,
+    magnet: tuple[float, float] | None
+):
+    logger: Logger = ctx.obj["logger"]
+    logger.info("No port specified, starting controller using defaults.")
+    magnet_: atk.Magnet = atk.GaussianMagnet(magnet[0], magnet[1], rand.default_rng()) if magnet else atk.StationaryMagnet(0.0)
+    speed_ = atk.FixedSpeed(speed)
+    history = run(world, frequency, magnet_, speed_, commands=repeat(None))
+
+    pprint(history)
 
 
 if __name__ == "__main__":
