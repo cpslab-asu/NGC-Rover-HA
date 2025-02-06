@@ -1,16 +1,46 @@
 from __future__ import annotations
 
+import itertools
 import logging
+import pathlib
 import sys
+import typing
 
 import click
+import gzcm
 import numpy.random as rand
+
 import staliro
 import staliro.optimizers
 import staliro.specifications.rtamt
 
 import simulation
-import controller.attacks as attacks
+from controller.messages import Start, Result
+from controller.attacks import FixedSpeed, GaussianMagnet, SpeedController, Magnet
+
+PORT: typing.Final[int] = 5556
+GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/ngc-rover-ha/gazebo:harmonic"
+GZ_BASE: typing.Final[pathlib.Path] = pathlib.Path("resources/worlds/default.sdf")
+GZ_WORLD: typing.Final[pathlib.Path] = pathlib.Path("/tmp/generated.sdf")
+
+
+def firmware(*, verbose: bool):
+    prefix = "controller"
+
+    if verbose:
+        prefix = f"{prefix} --verbose"
+
+    @gzcm.manage(
+        firmware_image="ghcr.io/cpslab-asu/ngc-rover-ha/controller:latest",
+        gazebo_image="ghcr.io/cpslab-asu/ngc-rover-ha/gazebo:harmonic",
+        command=f"{prefix} serve --port {PORT}",
+        port=PORT,
+        rtype=Result,
+    )
+    def inner(world: str, magnet: Magnet | None, speed: SpeedController | None, freq: int) -> Start:
+        return Start(world, freq, magnet, speed, commands=itertools.repeat(None))
+
+    return inner
 
 
 @click.group()
@@ -27,14 +57,13 @@ def test(ctx: click.Context, verbose: bool):
 @test.command()
 @click.pass_context
 def cpv1(ctx: click.Context):
+    firmware_ = firmware(verbose=ctx.obj["verbose"])
+
     @staliro.models.model()
     def model(sample: staliro.Sample) -> staliro.Trace[list[float]]:
-        result = simulation.run(
-            frequency=1,
-            magnet=None,
-            speed=attacks.FixedSpeed(sample.static["speed"]),
-            verbose=ctx.obj["verbose"]
-        )
+        gazebo = gzcm.Gazebo()
+        speed = FixedSpeed(sample.static["speed"])
+        result = firmware_.run(gazebo, freq=1, magnet=None, speed=speed)
         trace = {
             step.time: [
                 step.position[0],
@@ -43,7 +72,7 @@ def cpv1(ctx: click.Context):
                 step.heading,
                 step.roll,
             ]
-            for step in result.history
+            for step in result
         }
 
         return staliro.Trace(trace)
@@ -68,16 +97,15 @@ def cpv1(ctx: click.Context):
 @test.command()
 @click.pass_context
 def cpv2(ctx: click.Context):
+    firmware_ = firmware(verbose=ctx.obj["verbose"])
+
     @staliro.models.model()
     def model(sample: staliro.Sample) -> staliro.Result[staliro.Trace[list[float]], int]:
+        gazebo = gzcm.Gazebo()
+        speed = FixedSpeed(sample.static["speed"])
         seed = rand.randint(0, sys.maxsize - 1)
-        rng = rand.default_rng(seed)
-        result = simulation.run(
-            frequency=5,
-            magnet=attacks.GaussianMagnet(sample.static["x"], sample.static["y"], rng),
-            speed=attacks.FixedSpeed(5.0),
-            verbose=ctx.obj["verbose"]
-        )
+        magnet=GaussianMagnet(sample.static["x"], sample.static["y"], rng=rand.default_rng(seed))
+        result = firmware_.run(gazebo, freq=1, magnet=magnet, speed=speed)
         trace = {
             step.time: [
                 step.position[0],
@@ -109,7 +137,7 @@ def cpv2(ctx: click.Context):
         simulation.Plot(e.extra.trace, (e.sample.static["x"], e.sample.static["y"]))
         for e in run.evaluations
     ]
-    ground_truth = simulation.run(frequency=5, magnet=None, speed=attacks.FixedSpeed(5.0))
+    ground_truth = simulation.run(frequency=5, magnet=None, speed=FixedSpeed(5.0))
     p = simulation.Plot(
         magnet=None,
         trajectory=staliro.Trace({
