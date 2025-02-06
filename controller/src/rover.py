@@ -138,7 +138,6 @@ class Rover(automaton.Model):
     _node: InitializedNode = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
-    _magnet: attacks.Magnet = field()
     _logger: Logger = field(default_factory=_rover_logger, init=False)
 
     @property
@@ -201,23 +200,34 @@ class R1(Rover):
 
 @dataclass()
 class NGC(Rover):
+    _magnet: attacks.Magnet = field()
     _magnetometer: MagnetometerHandler = field()
     _servos: Publisher = field()
     _velocity: float = field(default=0.0, init=False)
     _steering_angle: float  = field(default=0.0, init=False)
 
     @property
-    def heading(self) -> float:
+    def _heading(self) -> float:
         x, y, _ = self._magnetometer.vector
 
         if y > 0:
-            return 90 - (atan(x/y) * 180/pi)
+            heading_ = 90 - (atan(x/y) * 180/pi)
         elif y < 0:
-            return 270 - (atan(x/y) * 180/pi)
+            heading_ = 270 - (atan(x/y) * 180/pi)
         elif x > 0:
-            return 180.0
+            heading_ = 180.0
         else:
-            return 0.0
+            heading_ = 0.0
+
+        return heading_
+
+    @property
+    def heading_real(self) -> float:
+        return self._heading
+
+    @property
+    def heading(self) -> float:
+        return self._heading + self._magnet.offset(self.clock, self)
 
     @property
     def steering_angle(self) -> float:
@@ -321,7 +331,7 @@ def _magnetometer_handler(
     return magnetometer
 
 
-def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
+def r1(world: str, *, name: str = "r1_rover") -> R1:
     logger = getLogger("rover.r1")
     logger.addHandler(NullHandler())
 
@@ -338,7 +348,7 @@ def r1(world: str, *, magnet: attacks.Magnet, name: str = "r1_rover") -> R1:
 
     logger.info("Initialized motor topic publisher.")
 
-    return R1(node, motors, pose, magnet)
+    return R1(node, motors, pose)
 
 
 def ngc(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> NGC:
