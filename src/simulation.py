@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses as dc
 import itertools
 import logging
 import pathlib
@@ -11,9 +12,12 @@ import click
 import docker
 import gzcm.gazebo
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import numpy.random as rand
+import staliro
 import zmq
 
-from controller.attacks import FixedSpeed, Magnet, SpeedController
+from controller.attacks import FixedSpeed, Magnet, SpeedController, GaussianMagnet
 from controller.messages import Result, Start
 
 if typing.TYPE_CHECKING:
@@ -151,37 +155,71 @@ def run(frequency: int, magnet: Magnet | None, speed: SpeedController | None, ve
     return result
 
 
+@dc.dataclass()
+class Plot:
+    trajectory: staliro.Trace[list[float]]
+    magnet: tuple[float, float] | None
+    color: typing.Literal["r", "g", "b", "k"] = "k"
+
+
+def plot(*plots: Plot):
+    _, ax = plt.subplots()
+    ax.set_title("Trajectory")
+    # ax.set_xlim(left=0, right=16)
+    ax.set_ylim(bottom=-2, top=10)
+    ax.add_patch(patches.Rectangle((0, 0), 8, 8, linewidth=1, edgecolor="r", fill=False))
+    magnets = [plot.magnet for plot in plots if plot.magnet is not None]
+
+    if magnets:
+        ax.scatter(
+            [magnet[0] for magnet in magnets],
+            [magnet[1] for magnet in magnets],
+            s=None,
+            c="b",
+        )
+
+    for plot in plots:
+        # ax.add_patch(patches.Circle(plot.magnet, 0.1, linewidth=1, edgecolor="b"))
+
+        times = list(plot.trajectory.times)
+        ax.plot(
+            [plot.trajectory[time][0] for time in times],
+            [plot.trajectory[time][1] for time in times],
+            plot.color,
+        )
+
+    plt.show(block=True)
+
+
 @click.command()
-@click.option("-s", "--speed", type=float, default=5.0)
 @click.option("-f", "--frequency", type=int, default=2)
-def simulation(speed: float, frequency: int):
+@click.option("-s", "--speed", type=float, default=5.0)
+@click.option("-m", "--magnet", type=float, nargs=2, default=None)
+def simulation(
+    speed: float,
+    frequency: int,
+    magnet: tuple[float, float] | None,
+):
+    if magnet:
+        rng = rand.default_rng()
+        magnet_ = GaussianMagnet(x=magnet[0], y=magnet[1], rng=rng)
+    else:
+        magnet_ = None
+
     result = run(
         frequency=frequency,
-        magnet=None,
+        magnet=magnet_,
         speed=FixedSpeed(speed),
         verbose=False,
     )
+    p = Plot(
+        magnet=magnet,
+        trajectory=staliro.Trace({
+            step.time: [step.position[0], step.position[1]] for step in result.history
+        }),
+    )
 
-    times = [step.time for step in result.history]
-    fig, axs = plt.subplots(2, 2)
-
-    axs[0, 0].plot(times, [step.position[0] for step in result.history])
-    axs[0, 0].set_xlabel("Time")
-    axs[0, 0].set_ylabel("X position")
-
-    axs[0, 1].plot(times, [step.position[1] for step in result.history])
-    axs[0, 1].set_xlabel("Time")
-    axs[0, 1].set_ylabel("Y position")
-
-    axs[1, 0].plot(times, [step.heading for step in result.history])
-    axs[1, 0].set_xlabel("Time")
-    axs[1, 0].set_ylabel("Heading")
-
-    axs[1, 1].plot(times, [step.roll for step in result.history])
-    axs[1, 1].set_xlabel("Time")
-    axs[1, 1].set_ylabel("Roll")
-
-    plt.show(block=True)
+    plot(p)
 
 
 if __name__ == "__main__":
