@@ -17,7 +17,11 @@ docker = [
     "apscheduler>=3.11.0",
     "click>=8.1.8",
     "pyzmq>=26.2.0",
+    "gzcm"
 ]
+
+[tool.uv.sources]
+gzcm = { git = "https://github.com/cpslab-asu/gzcm", rev = "7dcbea329a9dc7dd07a4f5602add8ca13a628b00" }
 
 [tool.setuptools]
 packages = ["controller"]
