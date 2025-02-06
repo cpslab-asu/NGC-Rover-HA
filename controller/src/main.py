@@ -7,6 +7,7 @@ from logging import DEBUG, INFO, WARNING, Logger, NullHandler, basicConfig, getL
 
 import apscheduler.schedulers.blocking as sched
 import click
+import gzcm.firmware
 import numpy.random as rand
 import zmq
 
@@ -125,7 +126,7 @@ def serve(ctx: click.Context, port: int):
                 else:
                     logger.info("Start message received. Running simulation.")
                     history = run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands)
-                    sock.send_pyobj(msgs.Result(history))
+                    sock.send_pyobj(gzcm.firmware.Success(msgs.Result(history)))
 
 
 @controller.command()
