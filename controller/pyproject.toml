@@ -21,7 +21,7 @@ docker = [
 ]
 
 [tool.uv.sources]
-gzcm = { git = "https://github.com/cpslab-asu/gzcm", rev = "7dcbea329a9dc7dd07a4f5602add8ca13a628b00" }
+gzcm = { git = "https://github.com/cpslab-asu/gzcm", rev = "cc39976a13e2cc10bdc17fdbfd9c92432846db62" }
 
 [tool.setuptools]
 packages = ["controller"]

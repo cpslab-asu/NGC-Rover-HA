@@ -218,7 +218,7 @@ requires-dist = [{ name = "numpy", specifier = "~=1.26.0" }]
 docker = [
     { name = "apscheduler", specifier = ">=3.11.0" },
     { name = "click", specifier = ">=8.1.8" },
-    { name = "gzcm", git = "https://github.com/cpslab-asu/gzcm?rev=7dcbea329a9dc7dd07a4f5602add8ca13a628b00" },
+    { name = "gzcm", git = "https://github.com/cpslab-asu/gzcm?rev=cc39976a13e2cc10bdc17fdbfd9c92432846db62" },
     { name = "pyzmq", specifier = ">=26.2.0" },
 ]
 
@@ -239,7 +239,7 @@ wheels = [
 [[package]]
 name = "gzcm"
 version = "0.2.0"
-source = { git = "https://github.com/cpslab-asu/gzcm?rev=7dcbea329a9dc7dd07a4f5602add8ca13a628b00#7dcbea329a9dc7dd07a4f5602add8ca13a628b00" }
+source = { git = "https://github.com/cpslab-asu/gzcm?rev=cc39976a13e2cc10bdc17fdbfd9c92432846db62#cc39976a13e2cc10bdc17fdbfd9c92432846db62" }
 dependencies = [
     { name = "attrs" },
     { name = "docker" },
