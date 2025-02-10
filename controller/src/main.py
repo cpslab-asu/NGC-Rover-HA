@@ -7,9 +7,8 @@ from logging import DEBUG, INFO, WARNING, Logger, NullHandler, basicConfig, getL
 
 import apscheduler.schedulers.blocking as sched
 import click
-import gzcm.firmware
+import gzcm
 import numpy.random as rand
-import zmq
 
 import rover
 import controller.messages as msgs
@@ -28,7 +27,7 @@ def run(
     speed: atk.SpeedController | None,
     commands: Iterable[ha.Command | None],
 ) -> list[msgs.Step]:
-    logger = getLogger("controller")
+    logger = getLogger("controller.simulation")
     logger.addHandler(NullHandler())
 
     step_size: float = 1.0/frequency
@@ -101,7 +100,7 @@ def controller(ctx: click.Context, verbose: bool):
         basicConfig(level=INFO)
         getLogger("apscheduler").setLevel(WARNING)
 
-    logger = getLogger("publisher")
+    logger = getLogger("controller")
     logger.addHandler(NullHandler())
     logger.info("Rover hybrid automaton controller version 0.1.0")
 
@@ -109,24 +108,15 @@ def controller(ctx: click.Context, verbose: bool):
     ctx.obj["logger"] = logger
 
 
+@gzcm.serve(msgtype=msgs.Start)
+def server(msg: msgs.Start) -> msgs.Result:
+    return msgs.Result(run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands))
+
+
 @controller.command()
-@click.pass_context
 @click.option("-p", "--port", type=int, default=5556)
-def serve(ctx: click.Context, port: int):
-    logger: Logger = ctx.obj["logger"]
-
-    with zmq.Context() as zmq_ctx:
-        with zmq_ctx.socket(zmq.REP) as sock:
-            with sock.bind(f"tcp://*:{port}"):
-                logger.info(f"Listening for start message on port {port}")
-                msg = sock.recv_pyobj()
-
-                if not isinstance(msg, msgs.Start):
-                    sock.send_pyobj(PublisherError(f"Unexpected start message type {type(msg)}"))
-                else:
-                    logger.info("Start message received. Running simulation.")
-                    history = run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands)
-                    sock.send_pyobj(gzcm.firmware.Success(msgs.Result(history)))
+def serve(port: int):
+    server(port)
 
 
 @controller.command()
