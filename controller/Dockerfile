@@ -1,9 +1,9 @@
 FROM ubuntu:22.04 AS build
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip git
+COPY --from=ghcr.io/astral-sh/uv:0.5.29 /uv /usr/bin/
 
-RUN pip install uv
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y python3 git
 
 RUN mkdir /app
 COPY ./pyproject.toml ./uv.lock /app
@@ -17,14 +17,16 @@ RUN uv sync --project /app --locked --group docker --no-install-project
 
 FROM ghcr.io/cpslab-asu/gzcm/base:22.04
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y \
         python3 \
         python3-gz-math7 \
         python3-gz-msgs10 \
         python3-gz-transport13 \
         && \
     rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND=
 
 COPY --from=build /app /app
 COPY ./src /app/src
