@@ -45,6 +45,10 @@ class Action(enum.IntEnum):
 class State(abc.ABC):
     """An abstract system state representing a behavior of the system."""
     flags: Flags
+
+    @abc.abstractmethod
+    def __int__(self) -> int:
+        ...
     
     @abc.abstractmethod
     def next(self, model: Model, cmd: Command | None) -> State:
@@ -81,6 +85,9 @@ class S1(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 1
+
     def next(self, model: Model, cmd: Command | None) -> State:
         if self.time >= 5:
             self.LOGGER.info("Wait time exceeded. Transitioning to S2.")
@@ -111,6 +118,9 @@ class S2(State):
         assert not self.flags.update_compass
         assert not self.flags.update_gps
         assert not self.flags.move
+
+    def __int__(self) -> int:
+        return 2
 
     @property
     def action(self) -> Action:
@@ -149,6 +159,9 @@ class S3(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 3
+
     @property
     def action(self) -> Action:
         return Action.TURN
@@ -186,6 +199,9 @@ class S4(State):
         assert not self.flags.check_position
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 4
+
     @property
     def action(self) -> Action:
         return Action.TURN
@@ -210,6 +226,9 @@ class S5(State):
         assert not self.flags.update_gps
         assert not self.flags.update_compass
         assert not self.flags.check_position
+
+    def __int__(self):
+        return 5
 
     @property
     def action(self) -> Action:
@@ -241,6 +260,9 @@ class S6(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
 
+    def __int__(self) -> int:
+        return 6
+
     def is_terminal(self) -> bool:
         return True
 
@@ -258,6 +280,9 @@ class S7(State):
         assert not self.flags.update_gps
         assert not self.flags.update_compass
         assert not self.flags.check_position
+
+    def __int__(self) -> int:
+        return 7
 
     @property
     def action(self) -> Action:
@@ -283,6 +308,9 @@ class S8(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 8
+
     @property
     def action(self) -> Action:
         return Action.TURN
@@ -300,6 +328,9 @@ class S9(State):
         assert not self.flags.autodrive
         assert not self.flags.check_position
         assert not self.flags.update_gps
+
+    def __int__(self) -> int:
+        return 9
 
     def is_terminal(self) -> bool:
         return True
