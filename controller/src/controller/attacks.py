@@ -49,3 +49,20 @@ class FixedSpeed(SpeedController):
 
     def speed(self, time: float) -> float:
         return self.magnitude
+
+
+class LidarInterference:
+    def magnitude(self, time: float) -> float:
+        ...
+
+
+class FixedLidarInterference(LidarInterference):
+    def __init__(self, magnitude: float, t_start: float = 0.0):
+        self._magnitude = magnitude
+        self._t0 = t_start
+
+    def magnitude(self, time: float) -> float:
+        if time >= self._t0:
+            return self._magnitude
+
+        return 0.0
