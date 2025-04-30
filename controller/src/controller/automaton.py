@@ -110,8 +110,20 @@ def euclidean_distance(p1: Position, p2: Position) -> float:
     )
 
 
+class LidarState(State):
+    @abc.abstractmethod
+    def _next(self, model: Model, cmd: Command | None) -> State:
+        ...
+
+    def next(self, model: Model, cmd: Command | None) -> State:
+        if model.obstacle_range <= 1.0:
+            return S6(Flags(check_position=False))
+
+        return self._next(model, cmd)
+
+
 @dc.dataclass(frozen=True, slots=True)
-class S2(State):
+class S2(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S2")
 
     initial_position: tuple[float, float, float] = dc.field()
@@ -130,7 +142,7 @@ class S2(State):
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}, transitioning to S6")
             return S6(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -151,7 +163,7 @@ class S2(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S3(State):
+class S3(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S3")
 
     initial_heading: float = dc.field()
@@ -170,7 +182,7 @@ class S3(State):
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S8")
             return S8(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -193,7 +205,7 @@ class S3(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S4(State):
+class S4(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S4")
 
     def __post_init__(self):
@@ -210,7 +222,7 @@ class S4(State):
     def action(self) -> Action:
         return Action.TURN
     
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S5")
         return S5(
             flags=dc.replace(self.flags, update_gps=False, move=True),
@@ -219,7 +231,7 @@ class S4(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S5(State):
+class S5(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S5")
 
     initial_position: Position
@@ -238,7 +250,7 @@ class S5(State):
     def action(self) -> Action:
         return Action.DRIVE
     
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S7")
             return S7(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -275,7 +287,7 @@ class S6(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S7(State):
+class S7(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S7")
 
     def __post_init__(self):
@@ -292,7 +304,7 @@ class S7(State):
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 55:
             self.LOGGER.info(f"Command receieved: {cmd}. Transitioning to S9")
             return S9(self.flags)
@@ -302,7 +314,7 @@ class S7(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S8(State):
+class S8(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S8")
 
     def __post_init__(self):
@@ -319,7 +331,7 @@ class S8(State):
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S7")
         return S7(flags=dc.replace(self.flags, move=True, update_compass=False))
 
