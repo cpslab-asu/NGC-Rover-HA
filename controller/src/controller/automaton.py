@@ -34,6 +34,10 @@ class Model(typing.Protocol):
     def heading(self) -> float:
         ...
 
+    @property
+    def obstacle_range(self) -> float:
+        ...
+
 
 class Action(enum.IntEnum):
     DRIVE = 0
