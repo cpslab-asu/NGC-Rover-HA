@@ -12,6 +12,7 @@ from gz.msgs10.actuators_pb2 import Actuators
 from gz.msgs10.boolean_pb2 import Boolean
 from gz.msgs10.double_pb2 import Double
 from gz.msgs10.entity_factory_pb2 import EntityFactory
+from gz.msgs10.laserscan_pb2 import LaserScan
 from gz.msgs10.magnetometer_pb2 import Magnetometer
 from gz.msgs10.pose_v_pb2 import Pose_V
 
@@ -123,6 +124,23 @@ class PoseHandler:
         self._ready.wait()
 
 
+class LidarHandler:
+    def __init__(self):
+        self._average = 0.0
+        self._lock = Lock()
+
+    def __call__(self, msg: LaserScan):
+        ranges = list(msg.ranges)
+
+        with self._lock:
+            self._average = sum(ranges) / len(ranges)
+
+    @property
+    def average(self) -> float:
+        with self._lock:
+            return self._average
+
+
 def _rover_logger() -> Logger:
     logger = getLogger("rover")
     logger.addHandler(NullHandler())
@@ -138,6 +156,7 @@ class Rover(automaton.Model):
     _node: InitializedNode = field()
     _motors: Publisher = field()
     _pose: PoseHandler = field()
+    _lidar: LidarHandler = field()
     _logger: Logger = field(default_factory=_rover_logger, init=False)
 
     @property
@@ -228,6 +247,10 @@ class NGC(Rover):
     @property
     def heading(self) -> float:
         return self._heading + self._magnet.offset(self.clock, self)
+
+    @property
+    def obstacle_range(self) -> float:
+        return self._lidar.average
 
     @property
     def steering_angle(self) -> float:
@@ -331,6 +354,17 @@ def _magnetometer_handler(
     return magnetometer
 
 
+def _lidar_handler(node: InitializedNode) -> LidarHandler:
+    topic = "/lidar"
+    handler = LidarHandler()
+    topic_options = SubscribeOptions()
+
+    if not node.subscribe(LaserScan, topic, handler, topic_options):
+        raise TransportError()
+
+    return handler
+
+
 def r1(world: str, *, name: str = "r1_rover") -> R1:
     logger = getLogger("rover.r1")
     logger.addHandler(NullHandler())
@@ -364,6 +398,9 @@ def ngc(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> NGC:
     magnetometer = _magnetometer_handler(node, world, name=name)
     logger.info("Initialized magnetometer topic handler")
 
+    lidar = _lidar_handler(node)
+    logger.info("Initialized LiDAR topic handler")
+
     motors = node.advertise(f"/model/{name}/command/motor_speed", Actuators)
 
     if not motors.valid():
@@ -377,4 +414,4 @@ def ngc(world: str, *, magnet: attacks.Magnet, name: str = "ackermann") -> NGC:
 
     logger.info("Initialized servo topic publisher.")
 
-    return NGC(node, motors, pose, magnet, magnetometer, servos)
+    return NGC(node, motors, pose, lidar, magnet, magnetometer, servos)
