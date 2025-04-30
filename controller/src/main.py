@@ -20,11 +20,34 @@ class PublisherError(Exception):
     pass
 
 
+class ModelWrapper(ha.Model):
+    def __init__(self, vehicle: rover.NGC, light: atk.LidarInterference):
+        self.vehicle = vehicle
+        self.light = light
+        self.t0 = 0.0
+
+    @property
+    def position(self) -> ha.Position:
+        return self.vehicle.position
+
+    @property
+    def heading(self) -> float:
+        return self.vehicle.heading
+
+    @property
+    def obstacle_range(self) -> float:
+        time = self.vehicle.clock - self.t0
+        offset = self.light.magnitude(time)
+
+        return self.vehicle.obstacle_range + offset
+
+
 def run(
     world: str,
     frequency: int,
     magnet: atk.Magnet | None,
     speed: atk.SpeedController | None,
+    lidar: atk.LidarInterference | None,
     commands: Iterable[ha.Command | None],
 ) -> list[msgs.Step]:
     logger = getLogger("controller.simulation")
@@ -39,14 +62,19 @@ def run(
     speed_ctl = speed or atk.FixedSpeed(5.0)
     logger.info(f"Speed: {speed_ctl}")
 
+    lidar = lidar or atk.FixedLidarInterference(0.0)
+    logger.info(f"Lidar: {lidar}")
+
     vehicle = rover.ngc(world, magnet=magnet)
-    controller = ha.Automaton(vehicle, step_size)
+    model = ModelWrapper(vehicle, lidar)
+    controller = ha.Automaton(model, step_size)
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
     cmds = iter(commands)
 
     vehicle.wait()
     tstart = vehicle.clock
+    model.t0 = tstart
 
     def update():
         tsim = vehicle.clock - tstart
@@ -110,7 +138,7 @@ def controller(ctx: click.Context, verbose: bool):
 
 @gzcm.serve(msgtype=msgs.Start)
 def server(msg: msgs.Start) -> msgs.Result:
-    return msgs.Result(run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands))
+    return msgs.Result(run(msg.world, msg.frequency, msg.lidar, msg.magnet, msg.speed, msg.commands))
 
 
 @controller.command()
