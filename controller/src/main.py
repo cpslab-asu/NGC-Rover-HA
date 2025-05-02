@@ -158,18 +158,23 @@ def serve(port: int):
 @click.option("-f", "--frequency", type=int, default=1)
 @click.option("-s", "--speed", type=float, default=5.0)
 @click.option("-m", "--magnet", nargs=2, type=float, default=None)
+@click.option("--lidar-magnitude", type=float, default=0.0)
+@click.option("--lidar-time", type=float, default=0.0)
 def start(
     ctx: click.Context,
     world: str,
     frequency: int,
     speed: float,
-    magnet: tuple[float, float] | None
+    magnet: tuple[float, float] | None,
+    lidar_magnitude: float,
+    lidar_time: float
 ):
     logger: Logger = ctx.obj["logger"]
     logger.info("No port specified, starting controller using defaults.")
     magnet_: atk.Magnet = atk.GaussianMagnet(magnet[0], magnet[1], rand.default_rng()) if magnet else atk.StationaryMagnet(0.0)
     speed_ = atk.FixedSpeed(speed)
-    history = run(world, frequency, magnet_, speed_, commands=repeat(None))
+    lidar_ = atk.FixedLidarInterference(lidar_magnitude, t_start=lidar_time)
+    history = run(world, frequency, magnet_, speed_, lidar_, commands=repeat(None))
 
     pprint(history)
 
