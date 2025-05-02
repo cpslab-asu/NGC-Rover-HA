@@ -35,6 +35,10 @@ class ModelWrapper(ha.Model):
         return self.vehicle.heading
 
     @property
+    def heading_real(self) -> float:
+        return self.vehicle.heading_real
+
+    @property
     def obstacle_range(self) -> float:
         time = self.vehicle.clock - self.t0
         offset = self.light.magnitude(time)
