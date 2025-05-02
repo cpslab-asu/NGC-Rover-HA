@@ -116,6 +116,10 @@ class LidarState(State):
         ...
 
     def next(self, model: Model, cmd: Command | None) -> State:
+        logger = logging.getLogger("automaton.lidar")
+        logger.addHandler(logging.NullHandler())
+        logger.info(f"Current obstacle range: {model.obstacle_range}")
+
         if model.obstacle_range <= 1.0:
             return S6(Flags(check_position=False))
 
