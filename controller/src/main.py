@@ -42,8 +42,9 @@ class ModelWrapper(ha.Model):
     def obstacle_range(self) -> float:
         time = self.vehicle.clock - self.t0
         offset = self.light.magnitude(time)
+        obstacle_range = min(self.vehicle.obstacle_range, 12.0)  # No detection should return 12m (max detection range)
 
-        return self.vehicle.obstacle_range + offset
+        return obstacle_range + offset
 
 
 def run(
