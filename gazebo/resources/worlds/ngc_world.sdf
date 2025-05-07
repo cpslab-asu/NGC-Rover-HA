@@ -63,10 +63,34 @@
       </link>
     </model>
 
-    <include>
-        <uri>model://ngc_rover</uri>
-        <pose degrees="true">0 0 0 0 0 0</pose>
-    </include>
+    <model name="obstacle">
+      <static>true</static>
+      <pose>2.5 0 0.5 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>100.0</mass>
+        </inertial>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>1 1 1</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>.3 .3 .3 1.0</ambient>
+            <diffuse>.7 .7 .7 1.0</diffuse>
+            <specular>.01 .01 .01 1.00</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
 
   </world>
 </sdf>
