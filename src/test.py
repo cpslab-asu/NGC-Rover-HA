@@ -16,7 +16,7 @@ import staliro.specifications.rtamt
 
 from controller.messages import Start, Result
 from controller.attacks import FixedSpeed, GaussianMagnet, SpeedController, Magnet
-from plots import Plot, plot
+from plots import Plot, StatePlot, plot
 
 PORT: typing.Final[int] = 5556
 GZ_IMAGE: typing.Final[str] = "ghcr.io/cpslab-asu/ngc-rover-ha/gazebo:harmonic"
@@ -176,8 +176,13 @@ def simulation(ctx: click.Context, speed: float, freq: int, magnet: tuple[float,
             step.time: [step.position[0], step.position[1]] for step in result.history
         }),
     )
+    s = StatePlot(
+        trajectory=staliro.Trace({
+            step.time: step.state for step in result.history
+        })
+    )
 
-    plot(p)
+    plot(p, states=s)
 
 
 if __name__ == "__main__":

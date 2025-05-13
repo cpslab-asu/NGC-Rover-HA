@@ -34,6 +34,10 @@ class Model(typing.Protocol):
     def heading(self) -> float:
         ...
 
+    @property
+    def obstacle_range(self) -> float:
+        ...
+
 
 class Action(enum.IntEnum):
     DRIVE = 0
@@ -45,6 +49,10 @@ class Action(enum.IntEnum):
 class State(abc.ABC):
     """An abstract system state representing a behavior of the system."""
     flags: Flags
+
+    @abc.abstractmethod
+    def __int__(self) -> int:
+        ...
     
     @abc.abstractmethod
     def next(self, model: Model, cmd: Command | None) -> State:
@@ -81,6 +89,9 @@ class S1(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 1
+
     def next(self, model: Model, cmd: Command | None) -> State:
         if self.time >= 5:
             self.LOGGER.info("Wait time exceeded. Transitioning to S2.")
@@ -99,8 +110,24 @@ def euclidean_distance(p1: Position, p2: Position) -> float:
     )
 
 
+class LidarState(State):
+    @abc.abstractmethod
+    def _next(self, model: Model, cmd: Command | None) -> State:
+        ...
+
+    def next(self, model: Model, cmd: Command | None) -> State:
+        logger = logging.getLogger("automaton.lidar")
+        logger.addHandler(logging.NullHandler())
+        logger.info(f"Current obstacle range: {model.obstacle_range}")
+
+        if model.obstacle_range <= 1.0:
+            return S6(Flags(check_position=False))
+
+        return self._next(model, cmd)
+
+
 @dc.dataclass(frozen=True, slots=True)
-class S2(State):
+class S2(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S2")
 
     initial_position: tuple[float, float, float] = dc.field()
@@ -112,11 +139,14 @@ class S2(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 2
+
     @property
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}, transitioning to S6")
             return S6(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -137,7 +167,7 @@ class S2(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S3(State):
+class S3(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S3")
 
     initial_heading: float = dc.field()
@@ -149,11 +179,14 @@ class S3(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 3
+
     @property
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S8")
             return S8(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -176,7 +209,7 @@ class S3(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S4(State):
+class S4(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S4")
 
     def __post_init__(self):
@@ -186,11 +219,14 @@ class S4(State):
         assert not self.flags.check_position
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 4
+
     @property
     def action(self) -> Action:
         return Action.TURN
     
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S5")
         return S5(
             flags=dc.replace(self.flags, update_gps=False, move=True),
@@ -199,7 +235,7 @@ class S4(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S5(State):
+class S5(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S5")
 
     initial_position: Position
@@ -211,11 +247,14 @@ class S5(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
 
+    def __int__(self):
+        return 5
+
     @property
     def action(self) -> Action:
         return Action.DRIVE
     
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 66:
             self.LOGGER.info(f"Received command {cmd}. Transitioning to S7")
             return S7(flags=dc.replace(self.flags, autodrive=False, check_position=False))
@@ -241,6 +280,9 @@ class S6(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
 
+    def __int__(self) -> int:
+        return 6
+
     def is_terminal(self) -> bool:
         return True
 
@@ -249,7 +291,7 @@ class S6(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S7(State):
+class S7(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S7")
 
     def __post_init__(self):
@@ -259,11 +301,14 @@ class S7(State):
         assert not self.flags.update_compass
         assert not self.flags.check_position
 
+    def __int__(self) -> int:
+        return 7
+
     @property
     def action(self) -> Action:
         return Action.DRIVE
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         if cmd == 55:
             self.LOGGER.info(f"Command receieved: {cmd}. Transitioning to S9")
             return S9(self.flags)
@@ -273,7 +318,7 @@ class S7(State):
 
 
 @dc.dataclass(frozen=True, slots=True)
-class S8(State):
+class S8(LidarState):
     LOGGER: typing.ClassVar[logging.Logger] = _create_state_logger("S8")
 
     def __post_init__(self):
@@ -283,11 +328,14 @@ class S8(State):
         assert not self.flags.update_gps
         assert not self.flags.move
 
+    def __int__(self) -> int:
+        return 8
+
     @property
     def action(self) -> Action:
         return Action.TURN
 
-    def next(self, model: Model, cmd: Command | None) -> State:
+    def _next(self, model: Model, cmd: Command | None) -> State:
         self.LOGGER.info("Transitioning to S7")
         return S7(flags=dc.replace(self.flags, move=True, update_compass=False))
 
@@ -300,6 +348,9 @@ class S9(State):
         assert not self.flags.autodrive
         assert not self.flags.check_position
         assert not self.flags.update_gps
+
+    def __int__(self) -> int:
+        return 9
 
     def is_terminal(self) -> bool:
         return True

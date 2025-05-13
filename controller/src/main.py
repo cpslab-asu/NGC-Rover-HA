@@ -20,11 +20,39 @@ class PublisherError(Exception):
     pass
 
 
+class ModelWrapper(ha.Model):
+    def __init__(self, vehicle: rover.NGC, light: atk.LidarInterference):
+        self.vehicle = vehicle
+        self.light = light
+        self.t0 = 0.0
+
+    @property
+    def position(self) -> ha.Position:
+        return self.vehicle.position
+
+    @property
+    def heading(self) -> float:
+        return self.vehicle.heading
+
+    @property
+    def heading_real(self) -> float:
+        return self.vehicle.heading_real
+
+    @property
+    def obstacle_range(self) -> float:
+        time = self.vehicle.clock - self.t0
+        offset = self.light.magnitude(time)
+        obstacle_range = min(self.vehicle.obstacle_range, 12.0)  # No detection should return 12m (max detection range)
+
+        return obstacle_range + offset
+
+
 def run(
     world: str,
     frequency: int,
     magnet: atk.Magnet | None,
     speed: atk.SpeedController | None,
+    lidar: atk.LidarInterference | None,
     commands: Iterable[ha.Command | None],
 ) -> list[msgs.Step]:
     logger = getLogger("controller.simulation")
@@ -39,14 +67,19 @@ def run(
     speed_ctl = speed or atk.FixedSpeed(5.0)
     logger.info(f"Speed: {speed_ctl}")
 
+    lidar = lidar or atk.FixedLidarInterference(0.0)
+    logger.info(f"Lidar: {lidar}")
+
     vehicle = rover.ngc(world, magnet=magnet)
-    controller = ha.Automaton(vehicle, step_size)
+    model = ModelWrapper(vehicle, lidar)
+    controller = ha.Automaton(model, step_size)
     scheduler = sched.BlockingScheduler()
     history: list[msgs.Step] = []
     cmds = iter(commands)
 
     vehicle.wait()
     tstart = vehicle.clock
+    model.t0 = tstart
 
     def update():
         tsim = vehicle.clock - tstart
@@ -110,7 +143,7 @@ def controller(ctx: click.Context, verbose: bool):
 
 @gzcm.serve(msgtype=msgs.Start)
 def server(msg: msgs.Start) -> msgs.Result:
-    return msgs.Result(run(msg.world, msg.frequency, msg.magnet, msg.speed, msg.commands))
+    return msgs.Result(run(msg.world, msg.frequency, msg.lidar, msg.magnet, msg.speed, msg.commands))
 
 
 @controller.command()
@@ -125,18 +158,23 @@ def serve(port: int):
 @click.option("-f", "--frequency", type=int, default=1)
 @click.option("-s", "--speed", type=float, default=5.0)
 @click.option("-m", "--magnet", nargs=2, type=float, default=None)
+@click.option("--lidar-magnitude", type=float, default=0.0)
+@click.option("--lidar-time", type=float, default=0.0)
 def start(
     ctx: click.Context,
     world: str,
     frequency: int,
     speed: float,
-    magnet: tuple[float, float] | None
+    magnet: tuple[float, float] | None,
+    lidar_magnitude: float,
+    lidar_time: float
 ):
     logger: Logger = ctx.obj["logger"]
     logger.info("No port specified, starting controller using defaults.")
     magnet_: atk.Magnet = atk.GaussianMagnet(magnet[0], magnet[1], rand.default_rng()) if magnet else atk.StationaryMagnet(0.0)
     speed_ = atk.FixedSpeed(speed)
-    history = run(world, frequency, magnet_, speed_, commands=repeat(None))
+    lidar_ = atk.FixedLidarInterference(lidar_magnitude, t_start=lidar_time)
+    history = run(world, frequency, magnet_, speed_, lidar_, commands=repeat(None))
 
     pprint(history)
 

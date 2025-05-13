@@ -29,4 +29,5 @@ class Start:
     frequency: int = field()
     magnet: attacks.Magnet | None = field()
     speed: attacks.SpeedController | None = field()
+    lidar: attacks.LidarInterference | None = field()
     commands: Iterable[automaton.Command | None] = field()
